@@ -123,3 +123,8 @@ body.auth-mode .content{max-width:770px;width:100%;min-height:480px;padding:0!im
 /* V0.4: 在线条目搜索区 */
 .remote-panel{margin-top:20px}.remote-card{min-width:0}.remote-cover{width:52px;height:69px;border-radius:12px;background:#f0ebfa;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;font-size:22px;color:#a99aca}.remote-cover img{width:100%;height:100%;object-fit:cover}.search-prompt,.search-notices{font-size:13px;line-height:1.7;color:#77718b;margin:12px 2px}.search-notices{color:#936f3d;background:#fff8e8;padding:9px 12px;border-radius:10px}.search-error{color:#a4494d}.remote-card .item-text{min-width:0;overflow-wrap:anywhere}.remote-card .small-btn{white-space:nowrap}.remote-card .item-text strong{font-size:14px}.remote-card .item-text small{display:block}.remote-panel .empty-state{padding:20px 12px}
 @media(max-width:600px){.remote-card{gap:9px}.remote-cover{width:44px;height:60px}.remote-card .small-btn{font-size:11px;padding:9px}.remote-card .item-text strong{font-size:13px}}
+
+/* V0.4.1 · 邮箱数字验证码登录 */
+.otp-input{max-width:320px;letter-spacing:.18em;font-size:19px;font-variant-numeric:tabular-nums}
+.otp-secondary{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:14px}
+.otp-secondary .link-btn{font-size:13px}

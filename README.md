@@ -1,4 +1,6 @@
-# 同频 V0.4 · Vercel + Cloudflare DNS + Supabase
+# 同频 V0.4.1 · 邮箱验证码修复 + Vercel + Cloudflare DNS + Supabase
+
+> **登录方式已升级为邮箱数字验证码**：新/老用户都在页面中输入 OTP；无需再点击 Supabase 邮件验证链接。**必须先修改 Supabase Magic Link 邮件模板和 Confirm sign up 模板**，否则用户收到的仍可能是链接。详细步骤见 `docs/AUTH_EMAIL_OTP.md`。
 
 版本目标：**保留已经运行的 Supabase 后端，不迁移数据库**；Vite 前端部署 Vercel，独立的 Vercel Function `/api/search` 负责调用 Bangumi、IGDB（可选）和高德（可选）。用已经备案的自有域名访问；先测试 Cloudflare **灰云**，再按需测试 **橙云**。
 
@@ -41,7 +43,7 @@ npm run dev         # 终端 2：Vite 页面 5173
 4. **不要设置 `VITE_SEARCH_API_BASE`**，线上直接访问同源 `/api/search`。
 5. Deploy 后先访问平台分配的 `https://<project>.vercel.app/api/health`，期望 `{"ok":true,...}`。注意：可读到健康接口并不等于已验证外部来源或 Supabase。
 6. Vercel 项目 → Domains，绑定 `app.你的域名`。DNS 记录以 Vercel 实际给出的目标为准；如果 DNS 在 Cloudflare，先设为 **DNS only（灰云）**，检查证书与域名验证。
-7. Supabase → Authentication → URL Configuration：正式 `Site URL` 使用 `https://app.你的域名`；Additional Redirect URLs 添加 **`https://app.你的域名/`** 与 `http://localhost:5173/**`（如需要）。前端现有 Magic Link `emailRedirectTo` 指向当前网页 Origin + Path。
+7. Supabase → Authentication → URL Configuration：正式 `Site URL` 使用 `https://app.你的域名`；Additional Redirect URLs 添加 **`https://app.你的域名/`** 与 `http://localhost:5173/**`（如需要）。新版使用邮箱数字 OTP，在网页内完成 `verifyOtp`，不再要求点击 Magic Link；Site URL/Redirect URLs 仍建议保持正式地址，以兼容其他认证邮件。
 8. 在无代理的大陆网络下实测网页登录、云端评分、榜单和三类搜索，再决定是否在 Cloudflare 做**橙云对照实验**。注意不能把已备案视为 Cloudflare 中国境内 CDN 节点的保证。
 
 详细步骤、故障诊断和验收表：**`docs/VERCEL_CLOUDFLARE.md`**。

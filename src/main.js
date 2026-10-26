@@ -15,6 +15,8 @@ import {findExistingCatalogItem} from './catalogMatch.js';
   let subscription = null;
   let refreshSerial = 0;
   let isBusy = false;
+  let pendingOtpEmail = '';
+  let lastOtpSentAt = 0;
   const NAV = [
     {id:'feed',name:'动态',icon:'home'}, {id:'discover',name:'发现',icon:'compass'},
     {id:'new',name:'记录',icon:'plus'}, {id:'circle',name:'圈子',icon:'users'},
@@ -206,7 +208,7 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     const content={
       setup:`<p>此版本需要 Supabase 项目才能保存真实成员和评分。先复制 <code>.env.example</code> 为 <code>.env</code>，填写项目 URL 和 <b>publishable key</b>，再运行数据库脚本。</p><div class="gate-tip">不要填写 secret / service_role key。具体步骤见项目 README.md。</div>`,
       loading:`<p>正在读取账号、成员和评分……</p><div class="gate-tip">第一次打开可能需要连接到 Supabase 服务器。</div>`,
-      login:`<p>登录后，每份体验都会保存在你的云端档案。我们采用邮箱免密码登录，不需要记住新密码。</p><form class="gate-form" id="login-form"><label for="login-email">邮箱地址</label><input id="login-email" name="email" class="form-control" type="email" autocomplete="email" required placeholder="you@example.com"/><button class="primary-btn" type="submit">发送登录邮件 ↗</button><p class="auth-hint">点击邮件中的登录链接后会返回同频。初次登录会自动创建账号。</p></form>`,
+      login:pendingOtpEmail ? `<p>验证码已发送至 <strong>${esc(pendingOtpEmail)}</strong>。无需打开邮件中的任何链接，直接将验证码输入下面即可登录。</p><form class="gate-form" id="otp-form"><label for="login-token">邮箱验证码</label><input id="login-token" name="token" class="form-control otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" required placeholder="输入邮件中的验证码"/><button class="primary-btn" type="submit">验证并登录 →</button><p class="auth-hint">验证码通常有效期为 1 小时；同一邮箱通常需要间隔 60 秒才能再次发送。请勿将验证码发给任何人。</p></form><div class="otp-secondary"><button class="link-btn" type="button" data-action="resend-otp">重新发送验证码</button><button class="link-btn" type="button" data-action="change-login-email">修改邮箱</button></div>` : `<p>登录后，每份体验都会保存在你的云端档案。使用邮箱验证码登录，新用户和已注册用户共用同一个入口，不需要点击验证链接。</p><form class="gate-form" id="login-form"><label for="login-email">邮箱地址</label><input id="login-email" name="email" class="form-control" type="email" autocomplete="email" required placeholder="you@example.com"/><button class="primary-btn" type="submit">发送验证码 ↗</button><p class="auth-hint">首次登录会自动创建账号。邮箱服务需在 Supabase 中正确配置；已注册账号无需重新注册。</p></form>`,
       circle:`<p>你已经登录。现在可以创建一个私人圈子，或者输入朋友发送给你的邀请码加入现有圈子。</p><div class="gate-choice"><form id="create-circle-form" class="gate-form"><h3>✳ 创建圈子</h3><label>圈子名称</label><input name="circleName" class="form-control" maxlength="60" required placeholder="例如：我们的秘密基地"/><button class="primary-btn" type="submit">创建我的圈子</button></form><form id="join-circle-form" class="gate-form"><h3>✉ 加入朋友的圈子</h3><label>24 位邀请码</label><input name="inviteCode" class="form-control code-input" maxlength="24" minlength="24" autocapitalize="characters" required placeholder="粘贴邀请码"/><button class="btn-ghost" type="submit">加入圈子 →</button></form></div><button class="link-btn gate-logout" data-action="logout">切换登录账号</button>`,
       error:`<p>${esc(fetchError)}</p><div class="gate-tip">请检查是否已经在 Supabase SQL Editor 运行 <code>supabase/schema.sql</code>，以及项目 URL、认证与访问权限。</div><button class="primary-btn" data-action="refresh">重新连接</button><button class="link-btn gate-logout" data-action="logout">退出登录</button>`
     }[kind];
@@ -306,6 +308,23 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     }
     await refreshAll(false);
     return mapCatalog(inserted);
+  }
+  async function sendLoginOtp(email){
+    const normalized = String(email || '').trim().toLowerCase();
+    if(!/^\S+@\S+\.\S+$/.test(normalized))throw new Error('请输入有效的邮箱地址');
+    const elapsed = Date.now() - lastOtpSentAt;
+    if(pendingOtpEmail===normalized && elapsed>0 && elapsed<60000){
+      throw new Error(`请等待 ${Math.ceil((60000-elapsed)/1000)} 秒后再重新发送`);
+    }
+    const {error}=await db.auth.signInWithOtp({
+      email:normalized,
+      options:{shouldCreateUser:true}
+    });
+    if(error)throw error;
+    pendingOtpEmail=normalized;
+    lastOtpSentAt=Date.now();
+    render();
+    toast('验证码邮件已发送，请在此页面输入验证码');
   }
   async function logout(){
     if(!db)return;
@@ -429,6 +448,12 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     else if(action==='delete'){if(confirm('确认从云端删除自己的这条记录？'))deleteExperience(target.dataset.id)}
     else if(action==='refresh')refreshAll(true)
     else if(action==='logout')logout()
+    else if(action==='change-login-email'){pendingOtpEmail='';render()}
+    else if(action==='resend-otp'){
+      if(isBusy||!pendingOtpEmail)return;
+      isBusy=true;
+      sendLoginOtp(pendingOtpEmail).catch(err=>toast('发送失败：'+displayError(err))).finally(()=>{isBusy=false});
+    }
     else if(action==='copy-invite'){if(inviteCode)navigator.clipboard.writeText(inviteCode).then(()=>toast('邀请码已复制')).catch(()=>toast('复制失败，请手动选择邀请码'))}
     else if(action==='export')exportData();
     else if(action==='import')$('import-file').click();
@@ -447,19 +472,29 @@ import {findExistingCatalogItem} from './catalogMatch.js';
   });
   document.addEventListener('submit', async e=>{
     const form=e.target, id=form.id;
-    if(!['record-form','item-form','login-form','create-circle-form','join-circle-form','nickname-form'].includes(id))return;
+    if(!['record-form','item-form','login-form','otp-form','create-circle-form','join-circle-form','nickname-form'].includes(id))return;
     e.preventDefault();
     if(isBusy)return;
     const f=new FormData(form);
     try{
       isBusy=true;
       if(id==='login-form'){
-        const email=String(f.get('email')||'').trim();
-        if(!email)throw Error('请输入邮箱地址');
-        const {error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin+window.location.pathname}});
+        await sendLoginOtp(f.get('email'));
+      } else if(id==='otp-form'){
+        if(!pendingOtpEmail)throw Error('请先填写邮箱并发送验证码');
+        const token=String(f.get('token')||'').trim();
+        if(!/^\d{6,8}$/.test(token))throw Error('请输入邮件中的数字验证码');
+        const {data:result,error}=await db.auth.verifyOtp({email:pendingOtpEmail,token,type:'email'});
         if(error)throw error;
-        toast('登录邮件已发送，请打开邮箱中的链接。');
-        form.querySelector('.auth-hint').textContent='邮件已发送。如果没有收到，请检查垃圾邮件，并确认 Supabase Auth 的邮件配置。';
+        if(!result?.session?.access_token||!result?.user)throw Error('验证后未获得登录会话，请重试');
+        pendingOtpEmail='';
+        lastOtpSentAt=0;
+        authUser=result.user;
+        fetchError='';
+        loading=false;
+        await refreshAll(false);
+        render();
+        toast('登录成功，欢迎来到同频！');
       } else if(id==='create-circle-form'){
         const {error}=await db.rpc('create_circle',{p_name:String(f.get('circleName')||'').trim()});
         if(error)throw error;
