@@ -1,6 +1,7 @@
 import './style.css';
 import {db, ready} from './cloud.js';
 import {findExistingCatalogItem} from './catalogMatch.js';
+import {coverImageUrl} from './coverUrl.js';
 
 /* 同频 V0.4：Supabase Auth / RLS + 服务端真实条目搜索 */
 (() => {
@@ -71,7 +72,7 @@ import {findExistingCatalogItem} from './catalogMatch.js';
   const coverCache = {};
   function httpsUrl(value){try{const u=new URL(String(value||''));return u.protocol==='https:'?u.href:''}catch(_){return ''}}
   const cover=(item,cl='')=>{
-    const src = httpsUrl(coverCache[item.id] || item.coverUrl);
+    const src = coverImageUrl(coverCache[item.id] || item.coverUrl);
     return `<div class="cover ${esc(item.category)} ${cl} cover-${esc(item.id)}" data-cover-id="${esc(item.id)}" role="img" aria-label="${esc(item.name)}封面或占位插图"><span class="cover-glow"></span><span class="cover-symbol">${esc(item.emoji||CAT_EMOJI[item.category])}</span><span class="cover-grain"></span>${src?`<img class="cover-photo" src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div>`
   };
   // 旅行地点从百科读取开放缩略图；只用于浏览器展示，不把图片二进制打包进项目。
@@ -126,7 +127,7 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     if(remote.category!==view.category||remote.query!==view.search.trim())return '<p class="search-prompt">准备搜索…</p>';
     const cards=remote.items.map((x,index)=>{
       const local=localMatch(x);
-      return `<div class="item-card remote-card"><div class="remote-cover">${x.coverUrl?`<img src="${esc(httpsUrl(x.coverUrl))}" alt="" loading="lazy" onerror="this.hidden=true"/>`:`<span>${CAT_EMOJI[x.category]}</span>`}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':'Bangumi')}</small></div><button class="small-btn" data-action="import-remote" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
+      return `<div class="item-card remote-card"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':'Bangumi')}</small></div><button class="small-btn" data-action="import-remote" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
     }).join('');
     const tips=remote.notices.length?`<p class="search-notices">${remote.notices.map(esc).join('；')}</p>`:'';
     return `${tips}${cards||'<div class="empty-state"><strong>暂未搜到结果</strong><p>可以换一个名称，或者手动创建条目。</p><button class="btn-ghost" data-action="new-item">＋ 手动创建</button></div>'}`;

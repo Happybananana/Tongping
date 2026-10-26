@@ -3,6 +3,7 @@ const CATEGORIES = new Set(['anime','game','place']);
 const MAX_QUERY = 65;
 const clean = (value) => String(value ?? '').trim().slice(0, 180);
 const safeUrl = (url) => { try { const u = new URL(url); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
+const safeBangumiCover = (url) => { try { const u = new URL(url); if(u.hostname.toLowerCase()==='lain.bgm.tv' && !u.port && (u.protocol==='http:' || u.protocol==='https:')) {u.protocol='https:';return u.href;} return safeUrl(url); }catch{return '';} };
 const text = (x,max=500) => clean(x).slice(0,max);
 const errorMessage = (err) => err instanceof Error ? err.message : String(err);
 
@@ -25,7 +26,7 @@ export function normalizeBangumi(payload,category) {
     name:text(x.name_cn || x.name || '未命名作品',100),
     subtitle:text(x.name_cn ? x.name : (x.name_cn||''),120),
     description:text(x.summary || '',500),
-    coverUrl:safeUrl(x.images?.large || x.images?.common || x.images?.medium),
+    coverUrl:safeBangumiCover(x.images?.large || x.images?.common || x.images?.medium),
     sourceUrl:`https://bgm.tv/subject/${encodeURIComponent(String(x.id))}`,
     year: /^\d{4}/.test(String(x.date||'')) ? String(x.date).slice(0,4) : '',
     emoji:category==='anime'?'📺':'🎮',

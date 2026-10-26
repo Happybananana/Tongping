@@ -1,3 +1,11 @@
+# 同频 V0.4.3 — Bangumi 封面代理修复
+
+基于 V0.4.2 的开放注册 + 密码登录版本，**仅补充封面转发并修复 Bangumi 旧式 HTTP 封面 URL**；Supabase 数据库、用户和评分结构不变。
+
+查看 `docs/COVER_PROXY.md` 获取升级、测试与故障排查步骤。其余部署操作与原版 `docs/VERCEL_CLOUDFLARE.md` 保持一致。
+
+本地运行：`npm install`、`npm run dev:search`（如需本地验证搜索 API）、`npm run dev`。线上直接由 Vercel Functions 提供 `/api/cover`。
+
 # 同频 V0.4.2 · 邮箱密码登录与开放注册 + Vercel + Cloudflare DNS + Supabase
 
 > **本版已改为密码登录**：支持注册、登录和登录后设置密码，不再使用 Magic Link 或 OTP。请先在 Supabase 启用 Email 登录、允许注册，并将 **Confirm Email 关闭**；详细步骤见 `docs/AUTH_PASSWORD.md`。

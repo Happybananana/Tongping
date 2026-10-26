@@ -1,5 +1,6 @@
 import http from 'node:http';
 import {searchCatalog,validateSearch} from './search.mjs';
+import {getCoverPath,fetchBangumiCover} from './cover.mjs';
 
 const port=Number(process.env.PORT||8787);
 const allowedOrigins = new Set(String(process.env.ALLOWED_ORIGINS||'http://localhost:5173').split(',').map(x=>x.trim()).filter(Boolean));
@@ -44,6 +45,20 @@ const server=http.createServer(async(req,res)=>{
   let path;
   try{path=new URL(req.url||'/',`http://localhost:${port}`)}catch{json(res,400,{error:'无效 URL'},origin);return;}
   if(path.pathname==='/api/health'&&req.method==='GET'){json(res,200,{ok:true,service:'tongpin-search-v0.4'},origin);return;}
+  if(path.pathname==='/api/cover'&&req.method==='GET'){
+    try{
+      const coverPath=getCoverPath(path.searchParams.get('path'));
+      const result=await fetchBangumiCover(coverPath);
+      res.writeHead(200,{'Content-Type':result.contentType,'Content-Length':result.bytes.length,
+        'Cache-Control':'public, max-age=3600','X-Content-Type-Options':'nosniff'});
+      res.end(result.bytes);
+    }catch(err){
+      const status=err.status===413?413:/Invalid cover path/.test(err.message||'')?400:502;
+      res.writeHead(status,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+      res.end(status===400?'Invalid cover path':'Cover temporarily unavailable');
+    }
+    return;
+  }
   if(path.pathname!=='/api/search'||req.method!=='GET'){json(res,404,{error:'接口不存在'},origin);return;}
   if(!rateLimit(req.socket.remoteAddress||'unknown')){json(res,429,{error:'搜索过于频繁，请稍后再试'},origin);return;}
   try{
