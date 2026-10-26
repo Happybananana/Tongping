@@ -1,6 +1,6 @@
-# 同频 V0.4.1 · 邮箱验证码修复 + Vercel + Cloudflare DNS + Supabase
+# 同频 V0.4.2 · 邮箱密码登录与开放注册 + Vercel + Cloudflare DNS + Supabase
 
-> **登录方式已升级为邮箱数字验证码**：新/老用户都在页面中输入 OTP；无需再点击 Supabase 邮件验证链接。**必须先修改 Supabase Magic Link 邮件模板和 Confirm sign up 模板**，否则用户收到的仍可能是链接。详细步骤见 `docs/AUTH_EMAIL_OTP.md`。
+> **本版已改为密码登录**：支持注册、登录和登录后设置密码，不再使用 Magic Link 或 OTP。请先在 Supabase 启用 Email 登录、允许注册，并将 **Confirm Email 关闭**；详细步骤见 `docs/AUTH_PASSWORD.md`。
 
 版本目标：**保留已经运行的 Supabase 后端，不迁移数据库**；Vite 前端部署 Vercel，独立的 Vercel Function `/api/search` 负责调用 Bangumi、IGDB（可选）和高德（可选）。用已经备案的自有域名访问；先测试 Cloudflare **灰云**，再按需测试 **橙云**。
 
@@ -43,7 +43,7 @@ npm run dev         # 终端 2：Vite 页面 5173
 4. **不要设置 `VITE_SEARCH_API_BASE`**，线上直接访问同源 `/api/search`。
 5. Deploy 后先访问平台分配的 `https://<project>.vercel.app/api/health`，期望 `{"ok":true,...}`。注意：可读到健康接口并不等于已验证外部来源或 Supabase。
 6. Vercel 项目 → Domains，绑定 `app.你的域名`。DNS 记录以 Vercel 实际给出的目标为准；如果 DNS 在 Cloudflare，先设为 **DNS only（灰云）**，检查证书与域名验证。
-7. Supabase → Authentication → URL Configuration：正式 `Site URL` 使用 `https://app.你的域名`；Additional Redirect URLs 添加 **`https://app.你的域名/`** 与 `http://localhost:5173/**`（如需要）。新版使用邮箱数字 OTP，在网页内完成 `verifyOtp`，不再要求点击 Magic Link；Site URL/Redirect URLs 仍建议保持正式地址，以兼容其他认证邮件。
+7. Supabase → Authentication：启用邮箱密码登录与开放注册，并关闭 Confirm Email（详见 `docs/AUTH_PASSWORD.md`）。Site URL 可继续设置为 `https://app.你的域名`；密码登录本身不需要邮件链接跳转。
 8. 在无代理的大陆网络下实测网页登录、云端评分、榜单和三类搜索，再决定是否在 Cloudflare 做**橙云对照实验**。注意不能把已备案视为 Cloudflare 中国境内 CDN 节点的保证。
 
 详细步骤、故障诊断和验收表：**`docs/VERCEL_CLOUDFLARE.md`**。
@@ -61,7 +61,7 @@ npm run build
 
 - `/api/search` 要求 **Supabase Access Token**；服务端用 Supabase Auth API 验证，不能只解码 JWT。Function 有暖实例内的简易限流，**不是跨实例全局限流**，正式公开访问应加 Vercel 防火墙限流。
 - 静态站和 API Function 都在 Vercel；Cloudflare 橙云只影响 `app` 入口，浏览器仍然**直接访问 Supabase 项目域名**，不能解决 Supabase 直连问题。
-- 免费/默认 Supabase 邮件服务不适合多人正式上线，需使用可投递到好友邮箱的 SMTP，并按供应商要求配置域名 DNS。
+- **密码登录无需 SMTP**。但关闭 Confirm Email 会失去邮箱所有权校验；未配置 SMTP 时不能通过邮件自助找回密码，建议控制新用户注册的滥用风险。
 - 旅行地点搜索高德主要针对中国 POI；境外地点覆盖不保证。Bangumi/IGDB 也依赖其各自 API 的访问限制和数据授权。
 - 作品图片可能仍引用外部地址。图片不能未经许可直接转存；加载失败使用占位图。
 - 由于不同译名、同名作品存在，当前「同名或同来源」去重只做基本处理，用户应确认后再打分。

@@ -128,3 +128,11 @@ body.auth-mode .content{max-width:770px;width:100%;min-height:480px;padding:0!im
 .otp-input{max-width:320px;letter-spacing:.18em;font-size:19px;font-variant-numeric:tabular-nums}
 .otp-secondary{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:14px}
 .otp-secondary .link-btn{font-size:13px}
+
+/* V0.4.2 密码登录注册 */
+.auth-switch{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:18px;color:#716c7d;font-size:13px}
+.auth-switch .link-btn{padding:3px 0;color:#6d5db2;font-weight:750}
+.gate-form input[type=password]{letter-spacing:.06em}
+#password-form{align-items:flex-end;gap:10px;margin-top:18px}
+#password-form input{max-width:220px}
+@media(max-width:620px){#password-form{align-items:stretch;flex-direction:column}#password-form input{max-width:none}}

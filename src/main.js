@@ -15,8 +15,7 @@ import {findExistingCatalogItem} from './catalogMatch.js';
   let subscription = null;
   let refreshSerial = 0;
   let isBusy = false;
-  let pendingOtpEmail = '';
-  let lastOtpSentAt = 0;
+  let authMode = 'login';
   const NAV = [
     {id:'feed',name:'动态',icon:'home'}, {id:'discover',name:'发现',icon:'compass'},
     {id:'new',name:'记录',icon:'plus'}, {id:'circle',name:'圈子',icon:'users'},
@@ -195,10 +194,13 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     <div class="panel"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></div>
     <div class="panel"><h2 class="section-title">账号与云端档案</h2><p class="help-copy">已登录：${esc(authUser?.email||'')}。个人记录保存在 Supabase；导入旧版记录时默认设为“仅自己可见”。</p>
     <form id="nickname-form" class="account-form"><label>圈内昵称</label><input name="nickname" class="form-control" maxlength="40" required value="${esc(userById(ME).name)}"/><button class="btn-ghost" type="submit">更新昵称</button></form>
+    <form id="password-form" class="account-form"><label for="new-password">设置 / 修改登录密码</label><input id="new-password" name="newPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="新密码（8 位以上）"/><input name="confirmPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="确认新密码"/><button class="btn-ghost" type="submit">保存密码</button></form><p class="help-copy">旧版 Magic Link 用户：如当前仍已登录，可在此设置密码以保留原账号 ID、圈子和评分。若开启了 Supabase 的安全密码变更验证，旧会话可能还需重新认证。</p>
     <div class="filters" style="margin:15px 0 0"><button class="btn-ghost" data-action="export">⇩ 导出数据</button><button class="btn-ghost" data-action="import">⇧ 导入旧版备份</button><button class="btn-ghost danger" data-action="logout">退出登录</button></div></div>`}
   function displayError(error){
     const raw=String(error?.message||error||'未知错误');
-    if(/Failed to fetch|NetworkError|fetch failed/i.test(raw))return '网络连接失败，请检查 Supabase 地址与网络';
+    if(/Failed to fetch|NetworkError|fetch failed/i.test(raw))return '网络连接失败，请检查大陆网络到 Supabase Auth 的连通性';
+    if(/Invalid login credentials/i.test(raw))return '邮箱或密码不正确（仅用旧 Magic Link 登录的账号可能尚未设置密码）';
+    if(/User already registered/i.test(raw))return '这个邮箱已注册，请返回登录；如果还没设过密码，请使用原登录会话设置密码';
     if(/relation .* does not exist|schema cache|Could not find the function|PGRST202|PGRST205/i.test(raw))return '数据库还未正确初始化，请先运行 supabase/schema.sql';
     return raw.slice(0,170);
   }
@@ -208,7 +210,7 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     const content={
       setup:`<p>此版本需要 Supabase 项目才能保存真实成员和评分。先复制 <code>.env.example</code> 为 <code>.env</code>，填写项目 URL 和 <b>publishable key</b>，再运行数据库脚本。</p><div class="gate-tip">不要填写 secret / service_role key。具体步骤见项目 README.md。</div>`,
       loading:`<p>正在读取账号、成员和评分……</p><div class="gate-tip">第一次打开可能需要连接到 Supabase 服务器。</div>`,
-      login:pendingOtpEmail ? `<p>验证码已发送至 <strong>${esc(pendingOtpEmail)}</strong>。无需打开邮件中的任何链接，直接将验证码输入下面即可登录。</p><form class="gate-form" id="otp-form"><label for="login-token">邮箱验证码</label><input id="login-token" name="token" class="form-control otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" required placeholder="输入邮件中的验证码"/><button class="primary-btn" type="submit">验证并登录 →</button><p class="auth-hint">验证码通常有效期为 1 小时；同一邮箱通常需要间隔 60 秒才能再次发送。请勿将验证码发给任何人。</p></form><div class="otp-secondary"><button class="link-btn" type="button" data-action="resend-otp">重新发送验证码</button><button class="link-btn" type="button" data-action="change-login-email">修改邮箱</button></div>` : `<p>登录后，每份体验都会保存在你的云端档案。使用邮箱验证码登录，新用户和已注册用户共用同一个入口，不需要点击验证链接。</p><form class="gate-form" id="login-form"><label for="login-email">邮箱地址</label><input id="login-email" name="email" class="form-control" type="email" autocomplete="email" required placeholder="you@example.com"/><button class="primary-btn" type="submit">发送验证码 ↗</button><p class="auth-hint">首次登录会自动创建账号。邮箱服务需在 Supabase 中正确配置；已注册账号无需重新注册。</p></form>`,
+      login:authMode==='register' ? `<p>创建一个同频账号。注册成功后仍需邀请码，才能加入朋友的私人圈子。</p><form class="gate-form" id="register-form"><label for="register-email">邮箱地址</label><input class="form-control" id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com"/><label for="register-password">设置密码</label><input class="form-control" id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="至少 8 位，建议使用独立密码"/><label for="register-confirm">确认密码</label><input class="form-control" id="register-confirm" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="再输入一遍密码"/><button class="primary-btn" type="submit">注册并进入同频 →</button><p class="auth-hint">本试运行版不验证邮箱所有权。请务必填写自己能长期使用的邮箱并记住密码；未配置 SMTP 时，无法通过邮件自助找回密码。</p></form><div class="auth-switch">已有账号？ <button class="link-btn" type="button" data-action="auth-mode" data-mode="login">返回登录</button></div>` : `<p>使用邮箱和密码登录你的私人兴趣档案，不需要邮件链接或验证码。</p><form class="gate-form" id="password-login-form"><label for="login-email">邮箱地址</label><input id="login-email" name="email" class="form-control" type="email" autocomplete="username" maxlength="254" required placeholder="you@example.com"/><label for="login-password">密码</label><input id="login-password" name="password" class="form-control" type="password" autocomplete="current-password" required placeholder="输入你的密码"/><button class="primary-btn" type="submit">登录同频 →</button><p class="auth-hint">以前只用 Magic Link 登录且没有设置过密码？请先在仍登录的设备上进入「我的」设置密码，或联系管理员协助处理。</p></form><div class="auth-switch">第一次来？ <button class="link-btn" type="button" data-action="auth-mode" data-mode="register">注册新账号</button></div>`,
       circle:`<p>你已经登录。现在可以创建一个私人圈子，或者输入朋友发送给你的邀请码加入现有圈子。</p><div class="gate-choice"><form id="create-circle-form" class="gate-form"><h3>✳ 创建圈子</h3><label>圈子名称</label><input name="circleName" class="form-control" maxlength="60" required placeholder="例如：我们的秘密基地"/><button class="primary-btn" type="submit">创建我的圈子</button></form><form id="join-circle-form" class="gate-form"><h3>✉ 加入朋友的圈子</h3><label>24 位邀请码</label><input name="inviteCode" class="form-control code-input" maxlength="24" minlength="24" autocapitalize="characters" required placeholder="粘贴邀请码"/><button class="btn-ghost" type="submit">加入圈子 →</button></form></div><button class="link-btn gate-logout" data-action="logout">切换登录账号</button>`,
       error:`<p>${esc(fetchError)}</p><div class="gate-tip">请检查是否已经在 Supabase SQL Editor 运行 <code>supabase/schema.sql</code>，以及项目 URL、认证与访问权限。</div><button class="primary-btn" data-action="refresh">重新连接</button><button class="link-btn gate-logout" data-action="logout">退出登录</button>`
     }[kind];
@@ -309,22 +311,23 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     await refreshAll(false);
     return mapCatalog(inserted);
   }
-  async function sendLoginOtp(email){
-    const normalized = String(email || '').trim().toLowerCase();
-    if(!/^\S+@\S+\.\S+$/.test(normalized))throw new Error('请输入有效的邮箱地址');
-    const elapsed = Date.now() - lastOtpSentAt;
-    if(pendingOtpEmail===normalized && elapsed>0 && elapsed<60000){
-      throw new Error(`请等待 ${Math.ceil((60000-elapsed)/1000)} 秒后再重新发送`);
-    }
-    const {error}=await db.auth.signInWithOtp({
-      email:normalized,
-      options:{shouldCreateUser:true}
-    });
-    if(error)throw error;
-    pendingOtpEmail=normalized;
-    lastOtpSentAt=Date.now();
+  function validatedEmail(value){
+    const email=String(value||'').trim().toLowerCase();
+    if(!/^\S+@\S+\.\S+$/.test(email)||email.length>254)throw Error('请输入有效的邮箱地址');
+    return email;
+  }
+  function validatedPassword(value){
+    const password=String(value||'');
+    if(password.length<8||password.length>128)throw Error('密码长度应为 8～128 位');
+    return password;
+  }
+  async function finishSignIn(result){
+    if(!result?.session?.access_token||!result?.user)throw Error('未获得登录会话。请检查 Supabase 是否关闭了 Confirm Email 设置。');
+    authUser=result.user;
+    loading=false;
+    fetchError='';
+    await refreshAll(false);
     render();
-    toast('验证码邮件已发送，请在此页面输入验证码');
   }
   async function logout(){
     if(!db)return;
@@ -448,12 +451,7 @@ import {findExistingCatalogItem} from './catalogMatch.js';
     else if(action==='delete'){if(confirm('确认从云端删除自己的这条记录？'))deleteExperience(target.dataset.id)}
     else if(action==='refresh')refreshAll(true)
     else if(action==='logout')logout()
-    else if(action==='change-login-email'){pendingOtpEmail='';render()}
-    else if(action==='resend-otp'){
-      if(isBusy||!pendingOtpEmail)return;
-      isBusy=true;
-      sendLoginOtp(pendingOtpEmail).catch(err=>toast('发送失败：'+displayError(err))).finally(()=>{isBusy=false});
-    }
+    else if(action==='auth-mode'){authMode=target.dataset.mode==='register'?'register':'login';render()}
     else if(action==='copy-invite'){if(inviteCode)navigator.clipboard.writeText(inviteCode).then(()=>toast('邀请码已复制')).catch(()=>toast('复制失败，请手动选择邀请码'))}
     else if(action==='export')exportData();
     else if(action==='import')$('import-file').click();
@@ -472,29 +470,35 @@ import {findExistingCatalogItem} from './catalogMatch.js';
   });
   document.addEventListener('submit', async e=>{
     const form=e.target, id=form.id;
-    if(!['record-form','item-form','login-form','otp-form','create-circle-form','join-circle-form','nickname-form'].includes(id))return;
+    if(!['record-form','item-form','password-login-form','register-form','password-form','create-circle-form','join-circle-form','nickname-form'].includes(id))return;
     e.preventDefault();
     if(isBusy)return;
     const f=new FormData(form);
     try{
       isBusy=true;
-      if(id==='login-form'){
-        await sendLoginOtp(f.get('email'));
-      } else if(id==='otp-form'){
-        if(!pendingOtpEmail)throw Error('请先填写邮箱并发送验证码');
-        const token=String(f.get('token')||'').trim();
-        if(!/^\d{6,8}$/.test(token))throw Error('请输入邮件中的数字验证码');
-        const {data:result,error}=await db.auth.verifyOtp({email:pendingOtpEmail,token,type:'email'});
+      if(id==='password-login-form'){
+        const email=validatedEmail(f.get('email'));
+        const password=String(f.get('password')||'');
+        const {data:result,error}=await db.auth.signInWithPassword({email,password});
         if(error)throw error;
-        if(!result?.session?.access_token||!result?.user)throw Error('验证后未获得登录会话，请重试');
-        pendingOtpEmail='';
-        lastOtpSentAt=0;
-        authUser=result.user;
-        fetchError='';
-        loading=false;
-        await refreshAll(false);
-        render();
-        toast('登录成功，欢迎来到同频！');
+        await finishSignIn(result);
+        toast('登录成功，欢迎回来！');
+      } else if(id==='register-form'){
+        const email=validatedEmail(f.get('email'));
+        const password=validatedPassword(f.get('password'));
+        if(password!==String(f.get('confirmPassword')||''))throw Error('两次输入的密码不一致');
+        const {data:result,error}=await db.auth.signUp({email,password});
+        if(error)throw error;
+        if(!result?.session)throw Error('注册已提交，但未获得登录会话。请在 Supabase → Authentication → Email 中关闭 Confirm Email，再重试登录。');
+        await finishSignIn(result);
+        toast('注册成功！请选择创建圈子或输入邀请码加入圈子。');
+      } else if(id==='password-form'){
+        const password=validatedPassword(f.get('newPassword'));
+        if(password!==String(f.get('confirmPassword')||''))throw Error('两次输入的密码不一致');
+        const {error}=await db.auth.updateUser({password});
+        if(error)throw error;
+        form.reset();
+        toast('密码已设置或更新。后续可以通过邮箱和密码登录。');
       } else if(id==='create-circle-form'){
         const {error}=await db.rpc('create_circle',{p_name:String(f.get('circleName')||'').trim()});
         if(error)throw error;
