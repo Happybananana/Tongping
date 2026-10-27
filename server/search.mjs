@@ -1,4 +1,5 @@
-/* 同频 V0.4：仅服务端运行。无第三方密钥或 Supabase JWT 写入客户端。 */
+/* 同频 V0.4.4：仅服务端运行。无第三方密钥或 Supabase JWT 写入客户端。 */
+import {bangumiRequest} from './bangumi-transport.mjs';
 const CATEGORIES = new Set(['anime','game','place']);
 const MAX_QUERY = 65;
 const clean = (value) => String(value ?? '').trim().slice(0, 180);
@@ -55,9 +56,9 @@ export function normalizeAmap(payload){
 
 export async function bangumiSearch(category,query,fetcher=fetch,env=process.env) {
   const body = JSON.stringify({keyword:query,sort:'match',filter:{type:[category==='anime'?2:4],nsfw:false}});
-  const payload=await readJSON('https://api.bgm.tv/v0/search/subjects?limit=14',{
-    method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','User-Agent':env.BANGUMI_USER_AGENT||'Tongpin/0.4 (private-interest-app)'} ,body
-  },8000,fetcher);
+  const payload=await bangumiRequest('/v0/search/subjects?limit=14',{
+    method:'POST',headers:{'Content-Type':'application/json'},body
+  },{fetcher,env});
   return normalizeBangumi(payload,category);
 }
 
@@ -95,7 +96,8 @@ export async function amapSearch(query,fetcher=fetch,env=process.env) {
 }
 
 const memo = new Map();
-export async function searchCatalog(category,keyword,{fetcher=fetch,env=process.env}={}){
+const pending = new Map();
+async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env}={}){
   const query=validateSearch(category,keyword);
   const key=`${category}:${query.toLowerCase()}`;
   const cached=memo.get(key);
@@ -119,4 +121,14 @@ export async function searchCatalog(category,keyword,{fetcher=fetch,env=process.
   memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data});
   if(memo.size>250)memo.delete(memo.keys().next().value);
   return data;
+}
+
+/** Coalesce simultaneous identical queries on a warm Vercel instance. */
+export async function searchCatalog(category, keyword, options = {}) {
+  const validated = validateSearch(category,keyword);
+  const key = `${category}:${validated.toLowerCase()}`;
+  if (pending.has(key)) return pending.get(key);
+  const p = runSearchCatalog(category, validated, options);
+  pending.set(key,p);
+  try { return await p; } finally { if(pending.get(key) === p) pending.delete(key); }
 }

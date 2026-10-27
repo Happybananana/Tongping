@@ -34,3 +34,10 @@ test('外部接口失败不破坏共享库：响应空结果和可见提示',asy
  const result=await searchCatalog('anime','模糊测试',{fetcher,env:{}});
  assert.deepEqual(result.items,[]);assert.match(result.notices.join(','),/暂时不可用/);
 });
+test('同一个瞬间的两次搜索在暖实例内共用一次请求',async()=>{
+ let calls=0;
+ const fetcher=async()=>{calls++;await new Promise(resolve=>setTimeout(resolve,30));return {ok:true,json:async()=>({data:[{id:911,name:'并发去重测试'}]})}};
+ const opts={fetcher,env:{BANGUMI_USER_AGENT:'test/Tongpin/0.4.4'}};
+ const [a,b]=await Promise.all([searchCatalog('anime','并发去重测试',opts),searchCatalog('anime','并发去重测试',opts)]);
+ assert.equal(calls,1);assert.deepEqual(a.items,b.items);
+});

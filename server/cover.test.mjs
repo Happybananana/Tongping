@@ -22,3 +22,14 @@ test('即使上游不传长度也限制最大二进制大小',async()=>{
  const fetcher=async()=>({ok:true,headers:new Headers({'content-type':'image/png'}),body:(async function*(){yield new Uint8Array(5*1024*1024+1)})()});
  await assert.rejects(fetchBangumiCover(ok,fetcher),/Cover too large/);
 });
+test('仅在显式启用时使用固定图床镜像',async()=>{
+ const urls=[];
+ const fetcher=async(url)=>{
+   urls.push(url);
+   if(url.startsWith('https://lain.bgm.tv'))throw new Error('network');
+   return {ok:true,headers:new Headers({'content-type':'image/png'}),body:(async function*(){yield new Uint8Array([8])})()};
+ };
+ const result=await fetchBangumiCover(ok,fetcher,{BANGUMI_COVER_MIRROR:'1'});
+ assert.equal(result.bytes.length,1);
+ assert.deepEqual(urls,[`https://lain.bgm.tv${ok}`,`https://bgmimg.anibt.net${ok}`]);
+});
