@@ -140,3 +140,62 @@ body.auth-mode .content{max-width:770px;width:100%;min-height:480px;padding:0!im
 /* V0.4.3：在线搜索的封面加载失败时显示类别图标，不留破图 */
 .remote-cover{position:relative}
 .remote-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* V0.4.5 · Bangumi score and subject categorization */
+.remote-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.bangumi-badge{display:inline-flex;align-items:baseline;gap:7px;border:1px solid #e7dcf9;background:linear-gradient(135deg,#f3edfc,#faf6ff);color:#7560a8;border-radius:8px;padding:6px 10px;white-space:nowrap;font-size:11px;font-weight:800;letter-spacing:.035em}
+.bangumi-badge b{font-size:15px;color:#5d4697;letter-spacing:-.04em}
+.bangumi-badge-small{font-size:10px;padding:3px 7px}.bangumi-badge-small b{font-size:12px}
+.kind-chip{display:inline-flex;align-items:center;border:1px solid #eee9e2;background:#fbfaf7;border-radius:40px;font-size:10px;color:#8c817e;padding:4px 8px;max-width:135px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.official-score-note{display:flex;align-items:center;justify-content:space-between;gap:20px;background:linear-gradient(120deg,#faf7ff,#fffaf2);border:1px solid #ede4f3;padding:18px 23px;margin:0 0 17px}
+.official-score-note .eyebrow{font-size:9px;margin:0 0 7px}.official-score-title{font-size:16px;font-weight:820;letter-spacing:-.025em;color:#564773;display:flex;align-items:center;gap:8px}
+.official-score-note small{display:block;font-size:11px;line-height:1.55;color:#998daa;margin-top:5px}
+.official-score-value{white-space:nowrap;color:#7960bb;font-weight:860;font-size:30px;line-height:1.1;letter-spacing:-.045em;text-align:right;font-variant-numeric:tabular-nums}
+.official-score-value>span{font-size:13px;font-weight:500;color:#a294b5}
+.official-score-value small{font-weight:500;font-size:11px;color:#9d8baa}
+@media(max-width:560px){.official-score-note{padding:16px;gap:8px}.official-score-title{font-size:13px}.official-score-value{font-size:23px}.official-score-note small{font-size:10px}}
+
+/* V0.4.5 · Living Library / sculpture-like floating 3D volumes. Keep layout light. */
+.display-toggle{display:flex;gap:4px;padding:4px;border-radius:12px;background:#f4f1f7;border:1px solid #ebe6f0;flex-shrink:0}
+.display-toggle button{font-size:11px;font-weight:750;padding:8px 11px;border:0;border-radius:9px;background:transparent;color:#9388a7;transition:background .2s,color .2s,box-shadow .2s}
+.display-toggle button.selected{background:#fff;color:#715eaa;box-shadow:0 2px 10px #5d51781a}
+.personal-library{margin-top:19px;position:relative;border-radius:22px;background:linear-gradient(150deg,#faf8f4 0%,#f3f0e9 54%,#faf7f2 100%);padding:23px 24px 28px;border:1px solid #ede8df;overflow:hidden;isolation:isolate}
+.personal-library:before,.personal-library:after{content:"";position:absolute;z-index:-1;pointer-events:none;border:1px solid rgba(181,165,199,.15);border-radius:50%;width:450px;height:450px;right:-200px;top:-220px}
+.personal-library:after{width:300px;height:300px;right:-120px;top:-130px;background:radial-gradient(circle,#d5c4df38,transparent 75%);border:none}
+.library-intro{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;border-bottom:1px solid #e8e0d9;padding-bottom:19px;margin-bottom:22px}
+.library-intro span{font-family:Georgia,"Times New Roman",serif;letter-spacing:.16em;font-size:14px;font-weight:600;color:#80678b}
+.library-intro p{margin:0;font-size:11px;color:#aa999b;letter-spacing:.025em}
+.library-room{margin:0 0 32px}.library-room:last-child{margin-bottom:7px}
+.library-room-head{display:flex;align-items:center;gap:8px;margin:3px 0 7px}
+.library-room-head h3{font-size:15px;letter-spacing:-.02em;margin:0;color:#59475b}
+.library-room-head small{font-size:10px;color:#a09597;margin-left:auto;text-align:right}
+.library-room-symbol{font-size:17px;color:#af8caa}
+.library-shelves{display:grid;gap:14px}.library-tier{position:relative;perspective:1100px;padding-top:8px}
+.library-books{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-items:end;gap:clamp(9px,2vw,20px);padding:15px 12px 8px;position:relative;z-index:1}
+.shelf-book{appearance:none;border:0;background:transparent;color:inherit;cursor:pointer;min-width:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:left;transform-style:preserve-3d;transform:translateZ(0);position:relative;z-index:0;transition:transform .42s cubic-bezier(.2,.75,.2,1),filter .3s}
+.shelf-book:hover,.shelf-book:focus-visible{z-index:4;transform:translateY(-15px) rotateY(-8deg) rotateX(3deg) scale(1.045);filter:drop-shadow(0 16px 20px #7e65852a)}
+.shelf-book-object{position:relative;display:block;width:100%;max-width:130px;aspect-ratio:0.73;transform-style:preserve-3d;will-change:auto;filter:drop-shadow(4px 6px 5px rgba(57,37,53,.14));transform:rotate(-1.1deg);animation:libraryFloat 7s ease-in-out infinite alternate;animation-delay:calc(var(--book-index)*-.75s)}
+.shelf-book:nth-child(even) .shelf-book-object{transform:rotate(1.2deg);animation-duration:8.5s}
+.shelf-book-spine{position:absolute;z-index:0;top:3%;bottom:1%;left:-7px;width:11px;border-radius:3px 0 0 3px;background:linear-gradient(90deg,#a6979c,#d6ced0 44%,#5c5068 100%);transform:skewY(-8deg) translateZ(-2px);box-shadow:inset 2px 0 3px #ffffff67}
+.shelf-book .shelf-cover{width:100%;height:100%;aspect-ratio:.73;border-radius:4px 8px 7px 4px;border:1px solid #ffffff96;box-shadow:inset -5px 0 6px rgba(48,30,70,.22),0 0 0 1px rgba(91,80,105,.06);overflow:hidden;position:relative;transform:translateZ(7px)}
+.shelf-book .shelf-cover .cover-photo{width:100%;height:100%;object-fit:cover;object-position:center;filter:saturate(.85) contrast(.98);transition:filter .3s,transform .5s}
+.shelf-book:hover .shelf-cover .cover-photo{filter:saturate(1.12);transform:scale(1.05)}
+.shelf-gleam{pointer-events:none;position:absolute;z-index:3;inset:0;transform:translateZ(8px);border-radius:4px 8px 8px 4px;background:linear-gradient(101deg,rgba(255,255,255,.35),transparent 23%,transparent 68%,rgba(255,255,255,.11));mix-blend-mode:screen}
+.shelf-book-info{display:flex;width:100%;flex-direction:column;gap:3px;text-align:center;min-width:0;min-height:39px}
+.shelf-book-title{color:#61535b;font-size:11px;font-weight:780;line-height:1.28;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shelf-book-rating{color:#a08994;font-size:9px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.library-ledge{position:relative;height:13px;width:calc(100% + 8px);margin-left:-4px;border:1px solid #c9b1a2;border-radius:3px 3px 6px 6px;background:linear-gradient(180deg,#e9d9c5 0%,#d2ae99 54%,#b48d7f 58%,#aa8170 100%);box-shadow:0 11px 13px #84685b2e,0 3px 1px #ffffffb5 inset}
+.library-ledge:after{content:"";position:absolute;left:0;right:0;top:100%;height:18px;background:linear-gradient(#77665624,transparent);border-radius:0 0 50% 50%}
+.travel-cabinet{border-top:1px solid #e6dbd5;margin-top:24px;padding-top:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px}
+.travel-cabinet h3,.travel-cabinet p{grid-column:1/-1;margin:0}.travel-cabinet h3{font-size:15px;color:#71606a}.travel-cabinet p{font-size:11px;color:#a29399;margin-top:-4px;margin-bottom:5px}
+.travel-ticket{min-height:74px;text-align:left;background:#fffdf9;border:1px solid #e8ded4;border-radius:12px;padding:13px;display:flex;flex-direction:column;gap:9px;justify-content:center;box-shadow:0 7px 17px #957c6830;transition:transform .25s,box-shadow .25s}
+.travel-ticket:hover{transform:translateY(-5px) rotate(-1.5deg);box-shadow:0 12px 24px #957c6840}.travel-ticket span{font-size:13px;color:#715667;font-weight:800}.travel-ticket small{font-size:10px;color:#ab9393}
+@keyframes libraryFloat{0%{transform:translateY(0px) rotateZ(-.7deg)}100%{transform:translateY(-5px) rotateZ(.8deg)}}
+@media(max-width:1000px){.library-books{gap:10px;padding:13px 7px 7px}}
+@media(max-width:680px){.personal-library{padding:18px 12px 22px;border-radius:16px}.library-intro{gap:7px}.library-intro span{font-size:12px}.library-room-head small{max-width:135px}.library-books{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 12px;padding:14px 12px 9px}.library-room{margin-bottom:27px}.shelf-book-object{max-width:135px}.shelf-book-title{font-size:10px}.display-toggle{margin-left:auto}.display-toggle button{font-size:10px;padding:8px}.personal-library:before{display:none}}
+@media(max-width:370px){.library-books{gap:10px;padding:12px 5px 8px}.shelf-book-info{min-height:36px}}
+/* Respect accessibility and battery life on phones. */
+@media(hover:none),(pointer:coarse){.shelf-book-object{animation:none!important}.shelf-book:hover{transform:none;filter:none}.shelf-book:active{transform:translateY(-4px) scale(1.02)}.travel-ticket:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){.shelf-book-object{animation:none!important}.shelf-book,.shelf-book .cover-photo,.travel-ticket,.display-toggle button{transition:none!important}.shelf-book:hover,.shelf-book:focus-visible{transform:none}}
+
+.shelf-book .shelf-cover{min-width:0;min-height:0}

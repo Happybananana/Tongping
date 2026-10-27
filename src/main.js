@@ -50,9 +50,12 @@ import {coverImageUrl} from './coverUrl.js';
   };
   let data = {items:[], records:[]};
   let remote = {items:[],notices:[],state:'idle',query:'',category:''};
+  const detailLookups = new Set(); // per-session on-demand hydration for legacy Bangumi entries
+  const detailMetadata = new Map(); // retain hydrated fields across normal background refreshes
   let searchTimer = null;
   let searchSerial = 0;
-  let view = {page:'feed',detailId:'',returnPage:'discover',category:'all',rankCategory:'all',rankMode:'average',minThree:false,search:'',personalCategory:'all',personalStatus:'all',personalSort:'recent'};
+  let view = {page:'feed',detailId:'',returnPage:'discover',category:'all',rankCategory:'all',rankMode:'average',minThree:false,search:'',personalCategory:'all',personalStatus:'all',personalSort:'recent',personalDisplay:'shelf'};
+  try { if(localStorage.getItem('tongpin:archive-display')==='list')view.personalDisplay='list'; } catch(_) {}
   const $ = id => document.getElementById(id);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const itemById = id => data.items.find(x=>x.id===id);
@@ -71,6 +74,9 @@ import {coverImageUrl} from './coverUrl.js';
   function notifyAge(iso){const days=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/86400000));return days===0?'今天':days===1?'昨天':days<30?`${days} 天前`:new Date(iso).toLocaleDateString('zh-CN',{month:'short',day:'numeric'})}
   const coverCache = {};
   function httpsUrl(value){try{const u=new URL(String(value||''));return u.protocol==='https:'?u.href:''}catch(_){return ''}}
+  const bangumiBadge=(item,small=false)=>item.provider==='bangumi'&&Number(item.bangumiScore)>0
+    ? `<span class="bangumi-badge ${small?'bangumi-badge-small':''}" title="Bangumi 社区评分，不计入圈子榜单">BGM <b>${Number(item.bangumiScore).toFixed(1)}</b></span>` : '';
+  const itemKinds=item=>[item.platform, ...(Array.isArray(item.tags)?item.tags:[])].filter(Boolean).slice(0,5);
   const cover=(item,cl='')=>{
     const src = coverImageUrl(coverCache[item.id] || item.coverUrl);
     return `<div class="cover ${esc(item.category)} ${cl} cover-${esc(item.id)}" data-cover-id="${esc(item.id)}" role="img" aria-label="${esc(item.name)}封面或占位插图"><span class="cover-glow"></span><span class="cover-symbol">${esc(item.emoji||CAT_EMOJI[item.category])}</span><span class="cover-grain"></span>${src?`<img class="cover-photo" src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div>`
@@ -115,7 +121,7 @@ import {coverImageUrl} from './coverUrl.js';
     <div class="feed-section-head"><div><span class="eyebrow">THE LATEST</span><h2 class="section-title">朋友的最近动态<span class="tiny-spark"> ✳</span></h2><p class="section-sub">看看大家这段时间爱上了什么</p></div><button class="btn-ghost feed-head-btn" data-action="navigate" data-page="circle">圈内榜单 ${icon('arrow',15)}</button></div>
     <div class="feed-list">${!events.length?'<div class="panel empty-state"><strong>圈子里还没有动态</strong><p>记录第一条体验，和朋友一起慢慢积累回忆。</p><button class="primary-btn" data-action="new-record">＋ 记录体验</button></div>':''}${events.map(r=>{const item=itemById(r.itemId);if(!item)return '';return `<article class="panel feed-card"><div class="feed-user">${avatar(r.userId)}<div><div class="name">${esc(userById(r.userId).name)} <span class="user-action">${esc(labelStatus(item.category,r.status))}了</span></div><div class="meta">${notifyAge(r.updatedAt)} · 分享了一条体验</div></div><span class="spacer"></span><span class="tag tag-${item.category}">${CAT_EMOJI[item.category]} ${CAT_NAME[item.category]}</span></div>
       <div class="content-row">${cover(item)}<div class="feed-detail"><div class="feed-item-sub">${esc(item.subtitle||CAT_NAME[item.category])}</div><button class="record-title clickable" data-action="detail" data-id="${item.id}">${esc(item.name)}</button><div class="feed-ratingline">${isRated(r)?`<span class="rating">${r.rating.toFixed(1)}<small> / 10</small></span><span class="rating-label">${r.rating>=9?'特别喜欢':r.rating>=8?'值得体验':'我的评分'}</span>`:`<span class="tag gray">暂未评分</span>`}</div>${r.note?`<div class="note">${r.spoiler?'◈ 剧透内容已隐藏，进入作品详情后可查看':`“${esc(r.note)}”`}</div>`:''}</div></div><div class="subbar"><span>${icon('users',14)} ${visibleRatings(item.id).length} 位伙伴打过分</span><span class="spacer"></span><button class="action-link" data-action="detail" data-id="${item.id}">查看评价 ${icon('arrow',14)}</button></div></article>`}).join('')}</div>`}
-  function discoverList(){const search=view.search.trim().toLocaleLowerCase();const matches=data.items.filter(x=>(view.category==='all'||x.category===view.category)&&(!search||`${x.name} ${x.subtitle}`.toLocaleLowerCase().includes(search)));return matches.length?matches.map(x=>{const s=summarize(x);return `<div class="item-card">${cover(x,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${x.id}"><strong>${esc(x.name)}</strong></button><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${s.count?s.average.toFixed(1)+'分 · '+s.count+'人评分':'暂无圈内评分'}</small></div><button class="small-btn" data-action="record" data-id="${x.id}">${own(x.id)?'编辑记录':'＋ 记录'}</button></div>`}).join(''):'<div class="empty-state"><strong>共享库暂无匹配条目</strong><p>试试下方在线搜索；如果没有结果，也可以手动创建。</p></div>'}
+  function discoverList(){const search=view.search.trim().toLocaleLowerCase();const matches=data.items.filter(x=>(view.category==='all'||x.category===view.category)&&(!search||`${x.name} ${x.subtitle}`.toLocaleLowerCase().includes(search)));return matches.length?matches.map(x=>{const s=summarize(x);return `<div class="item-card">${cover(x,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${x.id}"><strong>${esc(x.name)}</strong></button><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${s.count?s.average.toFixed(1)+'圈内分 · '+s.count+'人':'暂无圈内评分'}</small><div class="remote-meta">${bangumiBadge(x,true)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}</div></div><button class="small-btn" data-action="record" data-id="${x.id}">${own(x.id)?'编辑记录':'＋ 记录'}</button></div>`}).join(''):'<div class="empty-state"><strong>共享库暂无匹配条目</strong><p>试试下方在线搜索；如果没有结果，也可以手动创建。</p></div>'}
   function localMatch(remoteItem){
     return findExistingCatalogItem(data.items,remoteItem);
   }
@@ -127,7 +133,7 @@ import {coverImageUrl} from './coverUrl.js';
     if(remote.category!==view.category||remote.query!==view.search.trim())return '<p class="search-prompt">准备搜索…</p>';
     const cards=remote.items.map((x,index)=>{
       const local=localMatch(x);
-      return `<div class="item-card remote-card"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':'Bangumi')}</small></div><button class="small-btn" data-action="import-remote" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
+      return `<div class="item-card remote-card"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':'Bangumi')}</small><div class="remote-meta">${bangumiBadge(x,true)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}${(x.tags||[]).slice(0,2).map(t=>`<span class="kind-chip">${esc(t)}</span>`).join('')}</div></div><button class="small-btn" data-action="import-remote" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
     }).join('');
     const tips=remote.notices.length?`<p class="search-notices">${remote.notices.map(esc).join('；')}</p>`:'';
     return `${tips}${cards||'<div class="empty-state"><strong>暂未搜到结果</strong><p>可以换一个名称，或者手动创建条目。</p><button class="btn-ghost" data-action="new-item">＋ 手动创建</button></div>'}`;
@@ -164,6 +170,35 @@ import {coverImageUrl} from './coverUrl.js';
       if($('remote-results'))$('remote-results').innerHTML=remoteResultsHTML();
     },380);
   }
+  async function fetchBangumiDetail(item){
+    if(item.provider!=='bangumi' || !['anime','game'].includes(item.category) || !/^\d+$/.test(String(item.providerId||'')))return null;
+    const {data:sessionData,error} = await db.auth.getSession();
+    if(error || !sessionData.session?.access_token)return null;
+    const base=(import.meta.env.VITE_SEARCH_API_BASE||'').trim().replace(/\/$/,'');
+    const url=`${base}/api/subject?category=${encodeURIComponent(item.category)}&id=${encodeURIComponent(item.providerId)}`;
+    const resp=await fetch(url,{headers:{Authorization:`Bearer ${sessionData.session.access_token}`},signal:AbortSignal.timeout(7000)});
+    if(!resp.ok)throw new Error(`Bangumi 详情 HTTP ${resp.status}`);
+    const result=await resp.json();
+    return result.item?.providerId===String(item.providerId)?result.item:null;
+  }
+  async function hydrateBangumiDetail(id){
+    const item=itemById(id);
+    if(!item||item.provider!=='bangumi'||!item.providerItemId||detailLookups.has(id))return;
+    detailLookups.add(id);
+    // Existing catalog entries created in previous versions may lack metadata.
+    // Query once on opening detail, displaying the fresh value without granting
+    // browser clients arbitrary UPDATE rights over shared official scores.
+    try{
+      const found=await fetchBangumiDetail({...item,providerId:item.providerItemId});
+      if(!found)return;
+      const updates={bangumiScore:found.bangumiScore,bangumiRatingTotal:found.bangumiRatingTotal,
+        bangumiRank:found.bangumiRank,platform:found.platform||item.platform,
+        tags:found.tags?.length?found.tags:item.tags,
+        description:item.description||found.description};
+      Object.assign(item,updates);detailMetadata.set(id,updates);
+      if(view.page==='detail'&&view.detailId===id)$('page').innerHTML=detailPage();
+    }catch(e){console.info('[同频] Bangumi 资料暂时不可用',e.message)}
+  }
   async function importRemote(index){
     if(isBusy)return;
     const item=remote.items[Number(index)];
@@ -171,11 +206,17 @@ import {coverImageUrl} from './coverUrl.js';
     try{
       isBusy=true;
       let existing=localMatch(item);
+      let enriched=item;
+      if(!existing && item.provider==='bangumi'){
+        try{enriched=await fetchBangumiDetail(item)||item;}catch(_){/* 在线搜索已有评分与分类，可直接入库 */}
+      }
       if(!existing){
         existing=await createCatalogItem({
-          category:item.category,name:item.name,subtitle:item.subtitle,description:item.description,
-          coverUrl:item.coverUrl,sourceUrl:item.sourceUrl,year:item.year,
-          provider:item.provider,providerItemId:item.providerId,emoji:item.emoji
+          category:enriched.category,name:enriched.name,subtitle:enriched.subtitle,description:enriched.description,
+          coverUrl:enriched.coverUrl,sourceUrl:enriched.sourceUrl,year:enriched.year,
+          provider:enriched.provider,providerItemId:enriched.providerId,emoji:enriched.emoji,
+          tags:enriched.tags,platform:enriched.platform,bangumiScore:enriched.bangumiScore,
+          bangumiRatingTotal:enriched.bangumiRatingTotal,bangumiRank:enriched.bangumiRank
         });
       }
       recordForm(existing.id);
@@ -189,10 +230,25 @@ import {coverImageUrl} from './coverUrl.js';
     <div class="circle-banner"><div><span class="eyebrow">TOGETHER, WE RANK</span><h2>我们的共同心头好<span>✳</span></h2><p>看看大家最爱的作品，也看看最有分歧的那一个。</p></div><div class="circle-banner-art" aria-hidden="true">✺<small>TOP PICKS</small></div></div>
     <div class="panel ranking-panel"><div class="panel-head"><div><h2 class="section-title">圈子评分榜</h2><div class="section-sub">游戏、动画、旅行地点共享排名</div></div><span class="rank-panel-spark">${icon('star',19)}</span></div>${cats(view.rankCategory,'rank-category')}<div id="ranking-list">${rankingHTML()}</div></div><div class="panel members-panel"><div class="panel-head"><div><h2 class="section-title">同频伙伴</h2><div class="section-sub">在这里交换彼此的喜欢</div></div><span class="member-count">${USERS.length} 人</span></div><div class="member-list">${USERS.map(u=>`<div class="member-card">${avatar(u.id)}<div style="flex:1"><strong>${esc(u.name)}</strong><small>${data.records.filter(r=>r.userId===u.id).length} 条记录 · ${data.records.filter(r=>r.userId===u.id&&isRated(r)).length} 个评分</small></div><span class="member-score">${icon('spark',18)}</span></div>`).join('')}</div><p class="footer-note">成员都是真实登录的好友。圈子榜单默认展示全部已评分条目，也可以筛选至少 3 人评分。</p>
     ${activeCircle?.owner_id===ME?`<div class="invite-box"><strong>邀请好友加入</strong><p>把邀请码私下发给朋友，不要发在公开社交平台。</p><div class="invite-code">${esc(inviteCode||'加载中…')}</div><button class="btn-ghost" data-action="copy-invite">复制邀请码</button></div>`:''}</div>`}
-  function personalList(){const mine=ownRecords().filter(r=>{const item=itemById(r.itemId);return item&&(view.personalCategory==='all'||item.category===view.personalCategory)&&(view.personalStatus==='all'||r.status===view.personalStatus)}).slice().sort((a,b)=>view.personalSort==='rating'?( (isRated(b)?b.rating:-1)-(isRated(a)?a.rating:-1) || new Date(b.updatedAt)-new Date(a.updatedAt) ):new Date(b.updatedAt)-new Date(a.updatedAt));return mine.length?mine.map(r=>{const item=itemById(r.itemId);return `<div class="item-card">${cover(item,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${item.id}"><strong>${esc(item.name)}</strong></button><small>${CAT_NAME[item.category]} · ${labelStatus(item.category,r.status)} · ${r.visibility==='private'?'🔒 仅自己可见':'👥 圈内可见'}</small></div><div style="text-align:right"><div class="rating" style="font-size:17px">${isRated(r)?r.rating.toFixed(1):'—'}</div><button class="link-btn" data-action="record" data-id="${item.id}">编辑</button></div></div>`}).join(''):'<div class="empty-state"><strong>还没有相关记录</strong><p>从「发现」中找到感兴趣的条目并记录。</p></div>'}
+  function filteredPersonalRecords(){return ownRecords().filter(r=>{const item=itemById(r.itemId);return item&&(view.personalCategory==='all'||item.category===view.personalCategory)&&(view.personalStatus==='all'||r.status===view.personalStatus)}).slice().sort((a,b)=>view.personalSort==='rating'?((isRated(b)?b.rating:-1)-(isRated(a)?a.rating:-1) || new Date(b.updatedAt)-new Date(a.updatedAt)):new Date(b.updatedAt)-new Date(a.updatedAt));}
+  function libraryTier(records,label,small){
+    if(!records.length)return '';
+    return `<section class="library-room"><div class="library-room-head"><span class="library-room-symbol">${small?'✧':'✳'}</span><h3>${esc(label)}</h3><small>${records.length} 部藏品 · 点击书脊翻开详情</small></div><div class="library-shelves">${Array.from({length:Math.ceil(records.length/6)},(_,row)=>`<div class="library-tier"><div class="library-books">${records.slice(row*6,row*6+6).map((r,i)=>{const item=itemById(r.itemId);return `<button type="button" class="shelf-book" data-action="detail" data-id="${esc(item.id)}" title="${esc(item.name)} · ${esc(labelStatus(item.category,r.status))}" aria-label="打开${esc(item.name)}的详情，${esc(labelStatus(item.category,r.status))}" style="--book-index:${i};--book-hue:${(row*6+i)*23%150}"><span class="shelf-book-object"><span class="shelf-book-spine"></span>${cover(item,'shelf-cover')}<span class="shelf-gleam"></span></span><span class="shelf-book-info"><span class="shelf-book-title">${esc(item.name)}</span><span class="shelf-book-rating">${isRated(r)?'我的 '+r.rating.toFixed(1)+' / 10':'未评分'} ${item.bangumiScore?' · BGM '+Number(item.bangumiScore).toFixed(1):''}</span></span></button>`}).join('')}</div><div class="library-ledge" aria-hidden="true"></div></div>`).join('')}</div></section>`;
+  }
+  function personalList(){
+    const mine=filteredPersonalRecords();
+    if(!mine.length)return '<div class="empty-state"><strong>还没有相关记录</strong><p>从「发现」中找到感兴趣的条目并记录。</p></div>';
+    if(view.personalDisplay==='shelf'){
+      const anime=mine.filter(r=>itemById(r.itemId)?.category==='anime');
+      const games=mine.filter(r=>itemById(r.itemId)?.category==='game');
+      const places=mine.filter(r=>itemById(r.itemId)?.category==='place');
+      return `<div class="personal-library"><div class="library-intro"><span>THE LIVING LIBRARY</span><p>一座只属于你的收藏图书馆 · 轻触封面翻开一段回忆</p></div>${libraryTier(anime,'动画馆',false)}${libraryTier(games,'游戏馆',true)}${places.length?`<div class="travel-cabinet"><h3>📍 旅行地点</h3><p>地点以旅行卡片陈列，不强行模拟书本</p>${places.map(r=>{const item=itemById(r.itemId);return `<button class="travel-ticket" data-action="detail" data-id="${esc(item.id)}"><span>⌁ ${esc(item.name)}</span><small>${labelStatus(item.category,r.status)} · ${isRated(r)?r.rating.toFixed(1)+' / 10':'未评分'}</small></button>`}).join('')}</div>`:''}</div>`;
+    }
+    return mine.map(r=>{const item=itemById(r.itemId);return `<div class="item-card">${cover(item,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${item.id}"><strong>${esc(item.name)}</strong></button><small>${CAT_NAME[item.category]} · ${labelStatus(item.category,r.status)} · ${r.visibility==='private'?'🔒 仅自己可见':'👥 圈内可见'}</small><div class="remote-meta">${bangumiBadge(item,true)}</div></div><div style="text-align:right"><div class="rating" style="font-size:17px">${isRated(r)?r.rating.toFixed(1):'—'}</div><button class="link-btn" data-action="record" data-id="${item.id}">编辑</button></div></div>`}).join('');
+  }
   function me(){const mine=ownRecords(),rated=mine.filter(isRated);return `${header('MY ARCHIVE / 我的世界','每一次喜欢，都值得珍藏','这些记录属于你。你可以决定哪些内容分享给圈子。','<button class="primary-btn" data-action="new-record">＋ 添加记录</button>')}
     <div class="stats"><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='game').length}</strong><span>🎮 游戏</span></div><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='anime').length}</strong><span>📺 动画</span></div><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='place').length}</strong><span>📍 地点</span></div></div>
-    <div class="panel"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></div>
+    <div class="panel"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div><div class="display-toggle" role="group" aria-label="收藏展示方式"><button data-action="personal-display" data-display="shelf" class="${view.personalDisplay==='shelf'?'selected':''}" aria-pressed="${view.personalDisplay==='shelf'}">✦ 立体书架</button><button data-action="personal-display" data-display="list" class="${view.personalDisplay==='list'?'selected':''}" aria-pressed="${view.personalDisplay==='list'}">☷ 列表</button></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></div>
     <div class="panel"><h2 class="section-title">账号与云端档案</h2><p class="help-copy">已登录：${esc(authUser?.email||'')}。个人记录保存在 Supabase；导入旧版记录时默认设为“仅自己可见”。</p>
     <form id="nickname-form" class="account-form"><label>圈内昵称</label><input name="nickname" class="form-control" maxlength="40" required value="${esc(userById(ME).name)}"/><button class="btn-ghost" type="submit">更新昵称</button></form>
     <form id="password-form" class="account-form"><label for="new-password">设置 / 修改登录密码</label><input id="new-password" name="newPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="新密码（8 位以上）"/><input name="confirmPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="确认新密码"/><button class="btn-ghost" type="submit">保存密码</button></form><p class="help-copy">旧版 Magic Link 用户：如当前仍已登录，可在此设置密码以保留原账号 ID、圈子和评分。若开启了 Supabase 的安全密码变更验证，旧会话可能还需重新认证。</p>
@@ -219,7 +275,7 @@ import {coverImageUrl} from './coverUrl.js';
   }
 
   const unwrap=(result)=>{if(result.error)throw result.error;return result.data};
-  function mapCatalog(i){return {id:i.id,category:i.category,name:i.name,subtitle:i.subtitle||'',description:i.description||'',coverUrl:i.cover_url||'',sourceUrl:i.source_url||'',wikiTitle:i.wiki_title||'',emoji:i.emoji||CAT_EMOJI[i.category],year:i.year||'',tags:i.tags||[],provider:i.provider||null,providerItemId:i.provider_item_id||null}};
+  function mapCatalog(i){return {id:i.id,category:i.category,name:i.name,subtitle:i.subtitle||'',description:i.description||'',coverUrl:i.cover_url||'',sourceUrl:i.source_url||'',wikiTitle:i.wiki_title||'',emoji:i.emoji||CAT_EMOJI[i.category],year:i.year||'',tags:i.tags||[],provider:i.provider||null,providerItemId:i.provider_item_id||null,platform:i.bangumi_platform||'',bangumiScore:i.bangumi_score==null?null:Number(i.bangumi_score),bangumiRatingTotal:i.bangumi_rating_total??null,bangumiRank:i.bangumi_rank??null,...(detailMetadata.get(i.id)||{})}};
   function mapExperience(r){return {id:r.id,userId:r.user_id,itemId:r.item_id,rating:r.rating==null?null:Number(r.rating),status:r.status,note:r.note||'',spoiler:!!r.spoiler,visibility:r.visibility,updatedAt:r.updated_at}};
 
   let refreshTimer=null;
@@ -276,7 +332,7 @@ import {coverImageUrl} from './coverUrl.js';
       if(showToast)toast('圈子数据已同步');
     }catch(error){
       if(run===refreshSerial){fetchError=displayError(error);console.error('[同频] 数据同步失败',error)}
-    }finally{if(run===refreshSerial){loading=false;render()}}
+    }finally{if(run===refreshSerial){loading=false;render();if(view.page==='detail')void hydrateBangumiDetail(view.detailId)}}
   }
 
   async function saveExperience(r){
@@ -299,7 +355,12 @@ import {coverImageUrl} from './coverUrl.js';
       description:(item.description||'').slice(0,1500),cover_url:httpsUrl(item.coverUrl)||'',
       source_url:httpsUrl(item.sourceUrl)||'',year:String(item.year||'').slice(0,8),
       provider:item.provider||null,provider_item_id:item.providerItemId||null,
-      emoji:item.emoji||CAT_EMOJI[item.category],created_by:ME,circle_id:activeCircle.id
+      emoji:item.emoji||CAT_EMOJI[item.category],created_by:ME,circle_id:activeCircle.id,
+      tags:Array.isArray(item.tags)?item.tags.filter(t=>typeof t==='string').slice(0,8):[],
+      bangumi_platform:item.provider==='bangumi'?String(item.platform||'').slice(0,80):'',
+      bangumi_score:item.provider==='bangumi'&&Number(item.bangumiScore)>0?item.bangumiScore:null,
+      bangumi_rating_total:item.provider==='bangumi'?(item.bangumiRatingTotal??null):null,
+      bangumi_rank:item.provider==='bangumi'?(item.bangumiRank??null):null
     }).select('*').single();
     if(error){
       if(error.code==='23505'){
@@ -396,7 +457,7 @@ import {coverImageUrl} from './coverUrl.js';
     const item=itemById(view.detailId);if(!item)return '<div class="empty-state">未找到这个条目。<button class="btn-ghost" data-action="back">返回</button></div>';
     const summary=summarize(item),myRecord=own(item.id),shared=visibleRatings(item.id).sort((a,b)=>b.rating-a.rating);
     const all=allShared().filter(r=>r.itemId===item.id),otherStatus=all.filter(r=>!isRated(r));
-    const tags=(item.tags||[]).map(t=>`<span class="detail-pill">${esc(t)}</span>`).join('');
+    const tags=itemKinds(item).map(t=>`<span class="detail-pill">${esc(t)}</span>`).join('');
     const source=httpsUrl(item.sourceUrl);
     return `<div class="detail-breadcrumb"><button data-action="back" class="back-link">${icon('arrow',16)} 返回${view.returnPage==='circle'?'榜单':view.returnPage==='feed'?'动态':view.returnPage==='me'?'我的档案':'发现'}</button><span> / </span><span>${esc(CAT_NAME[item.category])}</span></div>
       <section class="detail-hero panel">
@@ -409,6 +470,7 @@ import {coverImageUrl} from './coverUrl.js';
           <div class="detail-hero-actions"><button class="primary-btn" data-action="record" data-id="${esc(item.id)}">${myRecord?'✎ 编辑我的体验':'＋ 记录我的体验'}</button>${source?`<a class="btn-ghost detail-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer">查看资料来源 ↗</a>`:''}</div>
         </div>
       </section>
+      ${item.provider==='bangumi'?`<div class="official-score-note panel"><div><span class="eyebrow">FROM BANGUMI · 社区参考</span><div class="official-score-title">Bangumi 评分 ${item.platform?`<span class="kind-chip">${esc(item.platform)}</span>`:''}</div><small>来自 Bangumi 社区的独立评分，不参与「同频」圈子榜单</small></div><div class="official-score-value">${item.bangumiScore!=null?Number(item.bangumiScore).toFixed(2):'—'}<span> / 10</span><small>${item.bangumiRatingTotal!=null?item.bangumiRatingTotal.toLocaleString('zh-CN')+' 人评分':'资料更新中或暂无评分'}${item.bangumiRank?' · 排名 #'+item.bangumiRank:''}</small></div></div>`:''}
       <div class="detail-metrics">
         <div class="panel rating-feature"><span class="metric-label">圈内平均评分</span><div class="metric-number">${summary.average===null?'—':summary.average.toFixed(1)}<small> / 10</small></div><div class="metric-context">${summary.count} 位伙伴已评分 ${summary.count<3?'· 样本较少':''}</div><div class="avatar-faces">${shared.slice(0,5).map(r=>avatar(r.userId)).join('')}</div></div>
         <div class="panel distribution-feature">${ratingDistribution(item.id)}</div>
@@ -433,7 +495,7 @@ import {coverImageUrl} from './coverUrl.js';
     if(h.startsWith('item/')){view.detailId=h.slice(5);view.page='detail'}
     else if(['feed','discover','circle','me'].includes(h)){view.page=h;view.detailId=''}
     else {view.page='feed';view.detailId=''}
-    render();if(view.page==='discover'&&view.search.trim().length>=2&&remote.query!==view.search.trim())startRemoteSearch();window.scrollTo({top:0,behavior:'instant'});
+    render();if(view.page==='discover'&&view.search.trim().length>=2&&remote.query!==view.search.trim())startRemoteSearch();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);window.scrollTo({top:0,behavior:'instant'});
   }
   function handleAction(target,clickEvent){const action=target.dataset.action;
     if(action==='navigate'){location.hash=target.dataset.page;syncRoute()}
@@ -449,6 +511,7 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='category'){view.category=target.dataset.category;render();startRemoteSearch()}
     else if(action==='rank-category'){view.rankCategory=target.dataset.category;render()}
     else if(action==='personal-category'){view.personalCategory=target.dataset.category;render()}
+    else if(action==='personal-display'){view.personalDisplay=target.dataset.display==='list'?'list':'shelf';try{localStorage.setItem('tongpin:archive-display',view.personalDisplay)}catch(_){}render()}
     else if(action==='delete'){if(confirm('确认从云端删除自己的这条记录？'))deleteExperience(target.dataset.id)}
     else if(action==='refresh')refreshAll(true)
     else if(action==='logout')logout()

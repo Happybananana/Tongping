@@ -1,5 +1,6 @@
 /* 同频 V0.4.4：仅服务端运行。无第三方密钥或 Supabase JWT 写入客户端。 */
 import {bangumiRequest} from './bangumi-transport.mjs';
+import {normalizeBangumiSubject} from './bangumi-metadata.mjs';
 const CATEGORIES = new Set(['anime','game','place']);
 const MAX_QUERY = 65;
 const clean = (value) => String(value ?? '').trim().slice(0, 180);
@@ -22,16 +23,19 @@ async function readJSON(url, opts={}, timeoutMs=7500, fetcher=fetch) {
 }
 
 export function normalizeBangumi(payload,category) {
-  return (Array.isArray(payload?.data)?payload.data:[]).filter(x=>x?.id!=null).slice(0,14).map(x=>({
-    category,provider:'bangumi',providerId:String(x.id),
-    name:text(x.name_cn || x.name || '未命名作品',100),
-    subtitle:text(x.name_cn ? x.name : (x.name_cn||''),120),
-    description:text(x.summary || '',500),
-    coverUrl:safeBangumiCover(x.images?.large || x.images?.common || x.images?.medium),
-    sourceUrl:`https://bgm.tv/subject/${encodeURIComponent(String(x.id))}`,
-    year: /^\d{4}/.test(String(x.date||'')) ? String(x.date).slice(0,4) : '',
-    emoji:category==='anime'?'📺':'🎮',
-  }));
+  return (Array.isArray(payload?.data) ? payload.data : [])
+    .map(x=>normalizeBangumiSubject(x,category)).filter(Boolean).slice(0,14);
+}
+
+// Obtain richer tags, rating stats and platform on demand; do not fetch full details
+// for every search hit. The detail request uses the same Bangumi failover transport.
+export async function bangumiDetail(category,id,fetcher=fetch,env=process.env){
+  if(!['anime','game'].includes(category) || !/^[1-9]\d{0,11}$/.test(String(id)))
+    throw Object.assign(new Error('非法的 Bangumi 条目参数'),{status:400});
+  const payload=await bangumiRequest(`/v0/subjects/${id}`,{}, {fetcher,env});
+  const item=normalizeBangumiSubject(payload,category);
+  if(!item) throw Object.assign(new Error('Bangumi 条目类型不匹配'),{status:404});
+  return item;
 }
 
 export function normalizeIGDB(payload){

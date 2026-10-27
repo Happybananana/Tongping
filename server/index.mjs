@@ -1,5 +1,5 @@
 import http from 'node:http';
-import {searchCatalog,validateSearch} from './search.mjs';
+import {searchCatalog,validateSearch,bangumiDetail} from './search.mjs';
 import {getCoverPath,fetchBangumiCover} from './cover.mjs';
 
 const port=Number(process.env.PORT||8787);
@@ -57,6 +57,17 @@ const server=http.createServer(async(req,res)=>{
       res.writeHead(status,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
       res.end(status===400?'Invalid cover path':'Cover temporarily unavailable');
     }
+    return;
+  }
+  if(path.pathname==='/api/subject'&&req.method==='GET'){
+    try{
+      if(!rateLimit(req.socket.remoteAddress||'unknown')){json(res,429,{error:'请求过于频繁'},origin);return;}
+      const category=path.searchParams.get('category'),id=path.searchParams.get('id');
+      if(!['anime','game'].includes(category)||!/^[1-9]\d{0,11}$/.test(id||'')){json(res,400,{error:'无效的条目参数'},origin);return;}
+      const jwt=(/^Bearer (.+)$/i.exec(req.headers.authorization||'')||[])[1];
+      await verifyJWT(jwt);
+      json(res,200,{item:await bangumiDetail(category,id)},origin);
+    }catch(err){json(res,Number(err.status)||502,{error:String(err.message||err).slice(0,180)},origin)}
     return;
   }
   if(path.pathname!=='/api/search'||req.method!=='GET'){json(res,404,{error:'接口不存在'},origin);return;}
