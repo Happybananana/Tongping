@@ -4,7 +4,7 @@ import {validateSearch,normalizeBangumi,normalizeIGDB,normalizeAmap,searchCatalo
 
 test('搜索入参校验与长度保护',()=>{
  assert.equal(validateSearch('anime',' 芙莉莲 '),'芙莉莲');
- assert.throws(()=>validateSearch('all','芙莉莲'),/类别/);
+ assert.equal(validateSearch('all',' 芙莉莲 '),'芙莉莲');
  assert.throws(()=>validateSearch('game','x'),/2–65/);
  assert.throws(()=>validateSearch('place','x'.repeat(66)),/2–65/);
 });
@@ -52,4 +52,27 @@ test('Online pagination has bounded page numbers and Bangumi offset',async()=>{
   let amapURL='';
   await amapSearch('杭州',(url)=>{amapURL=url;return Promise.resolve({ok:true,json:async()=>({status:'1',pois:[]})});},{AMAP_WEB_KEY:'test'},3);
   assert.match(amapURL,/page_num=3/);
+});
+
+test('全部频道并行检索游戏与动画，且不触发商店 API',async()=>{
+ const endpoints=[];
+ const f=async (url,opts)=>{
+   endpoints.push(String(url));
+   assert.match(String(url),/^https:\/\/api\.bgm\.tv\//);
+   const type=JSON.parse(opts.body).filter.type[0];
+   return {ok:true,json:async()=>({data:[{id:type*100,name:type===4?'演示游戏':'演示动画',type}]})};
+ };
+ const result=await searchCatalog('all','全频道测试',{fetcher:f,env:{BANGUMI_USER_AGENT:'test'}});
+ assert.deepEqual(result.items.map(x=>x.category).sort(),['anime','game']);
+ assert.equal(endpoints.length,2);
+});
+test('全部频道的游戏源出错仍显示动画结果及诊断提示',async()=>{
+ const f=async (url,opts)=>{
+   if(JSON.parse(opts.body).filter.type[0]===4)throw new Error('offline-game');
+   return {ok:true,json:async()=>({data:[{id:917,type:2,name:'演示动画'}]})};
+ };
+ const r=await searchCatalog('all','失联回退测试',{fetcher:f,env:{JIKAN_FALLBACK:'0'}});
+ assert.equal(r.items.length,1);
+ assert.equal(r.items[0].category,'anime');
+ assert.match(r.notices.join(' '),/offline-game/);
 });

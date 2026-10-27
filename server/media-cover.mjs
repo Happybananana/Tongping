@@ -15,7 +15,7 @@ export function parseMediaCover(provider,path){
 }
 export async function fetchMediaCover(provider,path,fetcher=fetch){
   const url=parseMediaCover(provider,path);
-  const response=await fetcher(url,{redirect:'manual',signal:AbortSignal.timeout(8000),headers:{Accept:'image/jpeg,image/png,image/webp'}});
+  const response=await fetcher(url,{redirect:'manual',signal:AbortSignal.timeout(4800),headers:{Accept:'image/jpeg,image/png,image/webp'}});
   if(!response.ok)throw new Error(`Media HTTP ${response.status}`);
   const type=(response.headers.get('content-type')||'').split(';')[0].toLowerCase().trim();
   if(!TYPES.has(type))throw new Error('Unexpected media type');

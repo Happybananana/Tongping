@@ -1,7 +1,7 @@
 /* 同频 V0.4.4：仅服务端运行。无第三方密钥或 Supabase JWT 写入客户端。 */
 import {bangumiRequest} from './bangumi-transport.mjs';
 import {normalizeBangumiSubject} from './bangumi-metadata.mjs';
-const CATEGORIES = new Set(['anime','game','place']);
+const CATEGORIES = new Set(['all','anime','game','place']);
 const MAX_QUERY = 65;
 const clean = (value) => String(value ?? '').trim().slice(0, 180);
 const safeUrl = (url) => { try { const u = new URL(url); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
@@ -10,7 +10,7 @@ const text = (x,max=500) => clean(x).slice(0,max);
 const errorMessage = (err) => err instanceof Error ? err.message : String(err);
 
 export function validateSearch(category, keyword) {
-  if (!CATEGORIES.has(category)) throw Object.assign(new Error('类别应为 anime、game 或 place'),{status:400});
+  if (!CATEGORIES.has(category)) throw Object.assign(new Error('类别应为 all、anime、game 或 place'),{status:400});
   const query = String(keyword ?? '').trim();
   if (query.length < 2 || query.length > MAX_QUERY) throw Object.assign(new Error('请输入 2–65 个字符的关键词'),{status:400});
   return query;
@@ -157,6 +157,24 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,
   const cached=memo.get(key);
   if(cached && cached.until>Date.now())return {...cached.data,cached:true};
   const notices=[];let items=[];let hasMore=false;
+  if(category==='all'){
+    // The default category must perform a real remote search, not silently skip it.
+    // Isolate failures so one unavailable catalog does not hide results from another.
+    const result=await Promise.allSettled([
+      searchCatalog('game',query,{fetcher,env,page}),
+      searchCatalog('anime',query,{fetcher,env,page})
+    ]);
+    const resolved=result.map((entry,i)=>entry.status==='fulfilled'?entry.value:{items:[],notices:[`${i===0?'游戏':'动画'}检索暂不可用：${errorMessage(entry.reason)}`],hasMore:false});
+    const [games,animes]=resolved;
+    for(let i=0;i<Math.max(games.items.length,animes.items.length)&&items.length<24;i++){
+      if(games.items[i])items.push(games.items[i]);
+      if(animes.items[i])items.push(animes.items[i]);
+    }
+    const combined={items,notices:[...games.notices,...animes.notices],category,query,page,
+      hasMore:games.hasMore||animes.hasMore,cached:false};
+    memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data:combined});
+    return combined;
+  }
   if(category==='anime'||category==='game'){
     let bangumiFailed=false;
     try{items=await bangumiSearch(category,query,fetcher,env,page);hasMore=items.length>=14;}
@@ -175,7 +193,7 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,
         if(result.error)notices.push(result.source+' 暂时不可用：'+errorMessage(result.error));
         else {items.push(...result.items);hasMore=hasMore||result.hasMore||result.items.length>=12;}
       }
-      if(!searches.length)notices.push('如需更多游戏来源，可配置 IGDB 或 RAWG_API_KEY（需要来源署名）');
+      if(!searches.length)notices.push('目前只有 Bangumi 游戏源可用。若检索不到，请尝试作品原文名；可另外配置 IGDB 或 RAWG_API_KEY 作为备用。');
     }
   }else{
     try{const result=await amapSearch(query,fetcher,env,page);items=result.items;hasMore=items.length>=15;

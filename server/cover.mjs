@@ -17,7 +17,7 @@ export function getCoverPath(value){
 
 async function imageFrom(host,path,fetcher){
   const response=await fetcher(`${host}${path}`,{
-    method:'GET',redirect:'manual',signal:AbortSignal.timeout(9000),
+    method:'GET',redirect:'manual',signal:AbortSignal.timeout(4800),
     headers:{'Accept':'image/jpeg,image/png,image/webp,image/avif;q=0.8',
       'Referer':'https://bgm.tv/','User-Agent':'Tongpin/0.4.4 (Bangumi cover)'}
   });
@@ -65,12 +65,30 @@ function imagePathFromLocation(value){
     return getCoverPath(url.pathname);
   }catch{return ''}
 }
-export async function fetchBangumiSubjectCover(subjectId,fetcher=fetch,env=process.env){
-  const id=getCoverSubjectId(subjectId);
+// Legacy fixed IDs can be resolved by two independent official/public artwork
+// routes. Race both rather than waiting through several serial timeouts.
+// The fallback ID mapping is fixed: user-supplied ids never select a URL/host.
+async function fetchCuratedMalCover(id,fetcher){
+  const malId=MAL_LEGACY_IDS[id];
+  if(!malId)throw new Error('No curated MAL mapping');
+  const r=await fetcher(`https://api.jikan.moe/v4/anime/${malId}`,{
+    redirect:'manual',signal:AbortSignal.timeout(4500),headers:{Accept:'application/json'}
+  });
+  if(!r.ok)throw new Error(`Jikan HTTP ${r.status}`);
+  const obj=await r.json();
+  const raw=obj?.data?.images?.jpg?.large_image_url||obj?.data?.images?.jpg?.image_url;
+  if(typeof raw!=='string')throw new Error('No Jikan image');
+  const u=new URL(raw);
+  const hosts={'cdn.myanimelist.net':'mal','images.myanimelist.net':'mal_old','api-cdn.myanimelist.net':'mal_api'};
+  const provider=hosts[u.hostname];
+  if(u.protocol!=='https:'||!provider||u.port||u.search)throw new Error('Unexpected MAL image origin');
+  return fetchMediaCover(provider,u.pathname,fetcher);
+}
+async function fetchOfficialSubjectCover(id,fetcher,env,{skipDetail=false}={}){
   let firstError;
   try{
     const resp=await fetcher(`https://api.bgm.tv/v0/subjects/${id}/image?type=large`,{
-      redirect:'manual',signal:AbortSignal.timeout(7000),headers:{Accept:'image/jpeg,image/png,image/webp,image/avif', 'User-Agent':String(env.BANGUMI_USER_AGENT||'Tongpin/0.5.4 (cover gateway)')}
+      redirect:'manual',signal:AbortSignal.timeout(3500),headers:{Accept:'image/jpeg,image/png,image/webp,image/avif', 'User-Agent':String(env.BANGUMI_USER_AGENT||'Tongpin/0.5.5 (cover gateway)')}
     });
     if([301,302,303,307,308].includes(resp.status)){
       const next=imagePathFromLocation(resp.headers.get('location'));
@@ -93,11 +111,14 @@ export async function fetchBangumiSubjectCover(subjectId,fetcher=fetch,env=proce
     if(err.status===413)throw err;
     firstError=err;
   }
-  // If the image endpoint is down or has a changed redirect, obtain the
-  // official subject metadata and reuse the existing strictly allowlisted proxy.
+  // Four curated initial anime have an independent verified MAL route; avoid
+  // fetching a second Bangumi metadata URL after an image failure.
+  if(skipDetail)throw Object.assign(new Error('Bangumi subject image unavailable'),{cause:firstError});
+  // Detail fallback is bounded; unlike v0.5.4 it no longer waits 7s+6.5s
+  // before *starting* a second independent source.
   try{
     const resp=await fetcher(`https://api.bgm.tv/v0/subjects/${id}`,{
-      redirect:'manual',signal:AbortSignal.timeout(6500),headers:{Accept:'application/json','User-Agent':String(env.BANGUMI_USER_AGENT||'Tongpin/0.5.4 (cover gateway)')}
+      redirect:'manual',signal:AbortSignal.timeout(3500),headers:{Accept:'application/json','User-Agent':String(env.BANGUMI_USER_AGENT||'Tongpin/0.5.5 (cover gateway)')}
     });
     if(!resp.ok)throw new Error(`Subject HTTP ${resp.status}`);
     const json=await resp.json();
@@ -105,22 +126,15 @@ export async function fetchBangumiSubjectCover(subjectId,fetcher=fetch,env=proce
     if(!path)throw new Error('No approved subject cover');
     return await fetchBangumiCover(path,fetcher,env);
   }catch(err){
-    // Curated V0.3 starter titles only: a verified ID crosswalk can fetch
-    // their official MAL/Jikan artwork when Bangumi is unreachable.
-    // Do not guess arbitrary Anime<->MAL matches automatically.
-    const malId=MAL_LEGACY_IDS[id];
-    if(malId && env.JIKAN_FALLBACK!=='0'){
-      try{
-        const r=await fetcher(`https://api.jikan.moe/v4/anime/${malId}`,{redirect:'manual',signal:AbortSignal.timeout(6500),headers:{Accept:'application/json'}});
-        if(!r.ok)throw new Error(`Jikan HTTP ${r.status}`);
-        const obj=await r.json();const raw=obj?.data?.images?.jpg?.large_image_url||obj?.data?.images?.jpg?.image_url;
-        const u=new URL(raw);const hosts={'cdn.myanimelist.net':'mal','images.myanimelist.net':'mal_old','api-cdn.myanimelist.net':'mal_api'};
-        const provider=hosts[u.hostname];
-        if(u.protocol!=='https:'||!provider)throw new Error('Unexpected MAL image origin');
-        return await fetchMediaCover(provider,u.pathname,fetcher);
-      }catch(malError){throw Object.assign(new Error('Bangumi and MAL cover unavailable'),{cause:[firstError,err,malError]});}
-    }
     throw Object.assign(new Error('Bangumi subject cover unavailable'),{cause:[firstError,err]});
   }
 }
-
+export async function fetchBangumiSubjectCover(subjectId,fetcher=fetch,env=process.env){
+  const id=getCoverSubjectId(subjectId);
+  if(!MAL_LEGACY_IDS[id]||env.JIKAN_FALLBACK==='0')return fetchOfficialSubjectCover(id,fetcher,env);
+  try{
+    return await Promise.any([fetchOfficialSubjectCover(id,fetcher,env,{skipDetail:true}),fetchCuratedMalCover(id,fetcher)]);
+  }catch(err){
+    throw Object.assign(new Error('Bangumi and MAL cover unavailable'),{cause:err});
+  }
+}

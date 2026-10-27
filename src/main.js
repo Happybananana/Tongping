@@ -178,8 +178,7 @@ import {coverImageUrl} from './coverUrl.js';
   function remoteResultsHTML(source=remote, category=view.category, query=view.search){
     const q=query.trim();
     if(q.length<2)return '<p class="search-prompt">至少输入 2 个字符，开始在线搜索。</p>';
-    if(category==='all')return '<p class="search-prompt">请先选游戏或动画频道；旅行地点请进入「沿途车站」。</p>';
-    if(source.state==='loading')return '<p class="search-prompt">正在搜索外部资料…</p>';
+        if(source.state==='loading')return '<p class="search-prompt">正在搜索外部资料…</p>';
     if(source.state==='error')return `<p class="search-prompt search-error">${esc(source.error)} · 可继续使用共享库或手动创建。</p>`;
     if(source.category!==category||source.query!==q)return '<p class="search-prompt">准备搜索…</p>';
     const isTravel=category==='place';
@@ -190,23 +189,23 @@ import {coverImageUrl} from './coverUrl.js';
     const tips=source.notices.length?`<p class="search-notices">${source.notices.map(esc).join('；')}</p>`:'';
     const current=Number(source.page)||1;
     const paging=source.items.length||current>1?`<div class="remote-page-controls"><button type="button" data-action="page-change" data-scope="${isTravel?'travel-remote':'remote'}" data-page="${current-1}" ${current===1?'disabled':''}>← 上一页</button><span>在线结果 / 第 ${current} 页</span><button type="button" data-action="page-change" data-scope="${isTravel?'travel-remote':'remote'}" data-page="${current+1}" ${!source.hasMore?'disabled':''}>下一页 →</button></div>`:'';
-    return `${tips}${cards||'<div class="empty-state"><strong>暂无匹配结果</strong><p>可以更换关键词，也可以手动创建条目。</p></div>'}${paging}`;
+    return `${tips}${cards||'<div class="empty-state"><strong>暂无匹配结果</strong><p>游戏可以试试中文名、英文名或日文原名；若出现数据源故障提示，请检查 Vercel 日志。也可手动创建。</p></div>'}${paging}`;
   }
   function discover(){const q=view.search.trim();return `
     <section class="tape-search-hero">
       <div class="search-signal" aria-hidden="true"><span class="search-signal-dot"></span> INPUT / CH. 02 <span>● LIVE SEARCH</span></div>
-      <div class="search-intro-grid"><div><div class="eyebrow">THE VIDEO FINDER / 02</div><h1>找点<br><span>新鲜的。</span></h1><p>用一个名字开启搜寻。先翻找我们的共同片库，再连接 Bangumi 与 IGDB；地点搜索有自己的列车专线。</p></div>
+      <div class="search-intro-grid"><div><div class="eyebrow">THE VIDEO FINDER / 02</div><h1>找点<br><span>新鲜的。</span></h1><p>用一个名字开启搜寻。先翻找共同片库，再检索 Bangumi；已配置的游戏备源也会一起参与。地点搜索有自己的列车专线。</p></div>
       <div class="search-retro-screen" aria-hidden="true"><span class="search-screen-top">RESONANCE SEARCH ENGINE / 2026</span><b>⌕</b><strong>FIND YOUR<br>NEXT FIX.</strong><span class="search-wave">▂▄▆█▅▃▅█▄▂</span></div></div>
       <div class="search-control-deck"><label class="searchbar searchbar-v49"><span>⌕</span><input id="search-input" type="search" aria-label="搜索游戏、动画或旅行地点" placeholder="输入游戏或动画的名称…" value="${esc(view.search)}" autocomplete="off"/><span class="search-shortcut">SEARCH / ENTER</span></label>
       <div class="search-deck-footer"><span class="search-channel-label">选择搜索频道</span>${cats(view.category,'category')}<button type="button" class="search-create" data-action="new-item">＋ 手动建档</button></div></div>
       ${!q?`<div class="search-quick-picks"><span>TRY A TITLE ↘</span><button data-action="search-preset" data-category="anime" data-query="葬送的芙莉莲">葬送的芙莉莲 ↗</button><button data-action="search-preset" data-category="game" data-query="空洞骑士">空洞骑士 ↗</button><button data-action="navigate" data-page="travel">旅行地点去沿途车站 ↗</button></div>`:''}
     </section>
     <section class="search-results-stage" aria-live="polite"><div class="search-chapter-head"><span>01 / IN OUR COLLECTION</span><h2>店内现货 <i>LOCAL FINDS</i></h2><small>${discoverMatches().length} 份匹配作品 · 每页 ${LOCAL_PAGE_SIZE} 项</small></div><div id="discover-list" class="catalog-find-list">${discoverList()}</div><div id="discover-pager">${discoverPager()}</div></section>
-    <section class="search-results-stage online-stage"><div class="search-chapter-head"><span>02 / BEYOND THE SHELVES</span><h2>新片到货 <i>ONLINE FINDS</i></h2><small>选中动画、游戏或地点频道后自动查询在线资料</small></div><div id="remote-results" class="catalog-find-list">${remoteResultsHTML()}</div></section>`}
+    <section class="search-results-stage online-stage"><div class="search-chapter-head"><span>02 / BEYOND THE SHELVES</span><h2>新片到货 <i>ONLINE FINDS</i></h2><small>全部频道会同时搜索动画与游戏；也可以选单一频道缩小范围</small></div><div id="remote-results" class="catalog-find-list">${remoteResultsHTML()}</div></section>`}
   function startRemoteSearch(){
     clearTimeout(searchTimer);const serial=++searchSerial;
     const q=view.search.trim(), category=view.category;
-    if(q.length<2||category==='all'){
+    if(q.length<2){
       remote={items:[],notices:[],state:'idle',query:q,category,page:1,hasMore:false};
       if($('remote-results'))$('remote-results').innerHTML=remoteResultsHTML();
       return;

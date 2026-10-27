@@ -42,7 +42,7 @@ test('旧版 Bangumi subject image 302 被安全跟随到图片代理',async()=>
    if(url.includes('/v0/subjects/400602/image'))return {status:302,headers:new Headers({location:'https://lain.bgm.tv/pic/cover/l/9d/d1/245665_5an54.jpg'})};
    return {ok:true,headers:new Headers({'content-type':'image/jpeg'}),body:(async function*(){yield new Uint8Array([1,2])})()};
  };
- const result=await fetchBangumiSubjectCover('400602',fetcher,{});
+ const result=await fetchBangumiSubjectCover('400602',fetcher,{JIKAN_FALLBACK:'0'});
  assert.equal(result.bytes.length,2);assert.equal(calls.length,2);
  assert.match(calls[1],/^https:\/\/lain\.bgm\.tv\//);
 });
@@ -52,7 +52,7 @@ test('错误 subject、恶意跳转不会变成任意地址的代理',async()=>{
    if(url.endsWith('image?type=large'))return {status:302,headers:new Headers({location:'https://evil.test/a.jpg'})};
    throw new Error('network');
  };
- await assert.rejects(fetchBangumiSubjectCover('400602',fetcher,{}),/unavailable/);
+ await assert.rejects(fetchBangumiSubjectCover('400602',fetcher,{JIKAN_FALLBACK:'0'}),/unavailable/);
 });
 test('四张内置动画在 Bangumi 失联时可退回 MAL/Jikan 的严格图床代理',async()=>{
  const calls=[];
@@ -66,4 +66,23 @@ test('四张内置动画在 Bangumi 失联时可退回 MAL/Jikan 的严格图床
  const result=await fetchBangumiSubjectCover('400602',fetcher,{JIKAN_FALLBACK:'1'});
  assert.equal(result.bytes.length,3);
  assert.ok(calls.includes('https://api.jikan.moe/v4/anime/52991'));
+});
+
+test('四张初始动画的已知 MAL 封面与 Bangumi 并行请求，先返回者立即可用',async()=>{
+ let bgmReached=false;
+ const f=async url=>{
+   if(url.startsWith('https://api.bgm.tv')){
+     bgmReached=true;
+     await new Promise(r=>setTimeout(r,100));
+     throw Error('Bangumi timeout');
+   }
+   if(url==='https://api.jikan.moe/v4/anime/52991')return {ok:true,json:async()=>({data:{images:{jpg:{large_image_url:'https://cdn.myanimelist.net/images/anime/100/12345.jpg'}}}})};
+   if(url==='https://cdn.myanimelist.net/images/anime/100/12345.jpg')return {ok:true,headers:new Headers({'content-type':'image/jpeg'}),body:(async function*(){yield new Uint8Array([9,8,7])})()};
+   throw Error('Unexpected '+url);
+ };
+ const beginning=Date.now();
+ const result=await fetchBangumiSubjectCover('400602',f,{JIKAN_FALLBACK:'1'});
+ assert.equal(result.bytes.length,3);
+ assert.equal(bgmReached,true);
+ assert.ok(Date.now()-beginning<100,'MAL fallback should not wait for Bangumi timeout');
 });
