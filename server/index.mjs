@@ -1,6 +1,7 @@
 import http from 'node:http';
-import {searchCatalog,validateSearch,bangumiDetail} from './search.mjs';
-import {getCoverPath,fetchBangumiCover} from './cover.mjs';
+import {searchCatalog,validateSearch,validatePage,bangumiDetail} from './search.mjs';
+import {getCoverPath,getCoverSubjectId,fetchBangumiCover,fetchBangumiSubjectCover} from './cover.mjs';
+import {fetchMediaCover} from './media-cover.mjs';
 
 const port=Number(process.env.PORT||8787);
 const allowedOrigins = new Set(String(process.env.ALLOWED_ORIGINS||'http://localhost:5173').split(',').map(x=>x.trim()).filter(Boolean));
@@ -47,8 +48,8 @@ const server=http.createServer(async(req,res)=>{
   if(path.pathname==='/api/health'&&req.method==='GET'){json(res,200,{ok:true,service:'tongpin-search-v0.4'},origin);return;}
   if(path.pathname==='/api/cover'&&req.method==='GET'){
     try{
-      const coverPath=getCoverPath(path.searchParams.get('path'));
-      const result=await fetchBangumiCover(coverPath);
+      const subject=path.searchParams.get('subject');
+      const result=subject ? await fetchBangumiSubjectCover(getCoverSubjectId(subject)) : await fetchBangumiCover(getCoverPath(path.searchParams.get('path')));
       res.writeHead(200,{'Content-Type':result.contentType,'Content-Length':result.bytes.length,
         'Cache-Control':'public, max-age=3600','X-Content-Type-Options':'nosniff'});
       res.end(result.bytes);
@@ -57,6 +58,13 @@ const server=http.createServer(async(req,res)=>{
       res.writeHead(status,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
       res.end(status===400?'Invalid cover path':'Cover temporarily unavailable');
     }
+    return;
+  }
+  if(path.pathname==='/api/media'&&req.method==='GET'){
+    try{
+      const result=await fetchMediaCover(path.searchParams.get('provider'),path.searchParams.get('path'));
+      res.writeHead(200,{'Content-Type':result.contentType,'Content-Length':result.bytes.length,'Cache-Control':'public, max-age=3600','X-Content-Type-Options':'nosniff'});res.end(result.bytes);
+    }catch(err){res.writeHead(err.status===400?400:err.status===413?413:502,{'Cache-Control':'no-store'});res.end('Media unavailable')}
     return;
   }
   if(path.pathname==='/api/subject'&&req.method==='GET'){
@@ -77,7 +85,7 @@ const server=http.createServer(async(req,res)=>{
     validateSearch(category,q);
     const jwt=(/^Bearer (.+)$/i.exec(req.headers.authorization||'')||[])[1];
     await verifyJWT(jwt);
-    const data=await searchCatalog(category,q);
+    const data=await searchCatalog(category,q,{page:validatePage(path.searchParams.get('page')||1)});
     json(res,200,data,origin);
   }catch(err){
     const status=Number(err.status)||502;

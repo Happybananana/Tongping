@@ -52,6 +52,53 @@ export function normalizeIGDB(payload){
   }));
 }
 
+
+/** No-key Jikan is an unofficial read-only index of MAL, not the MAL official API.
+ * Used only when Bangumi has no hits or is unavailable to respect Jikan limits.
+ */
+export function normalizeJikan(payload){
+  return (Array.isArray(payload?.data)?payload.data:[]).filter(x=>Number.isInteger(x?.mal_id)&&x.mal_id>0).slice(0,12).map(x=>({
+    category:'anime',provider:'jikan',providerId:String(x.mal_id),
+    name:text(x.title||x.title_english||'未命名动画',100),
+    subtitle:text([x.title_japanese,x.title_english].filter(Boolean).join(' · '),120),
+    description:text(x.synopsis||'',500),
+    coverUrl:safeUrl(x.images?.jpg?.large_image_url||x.images?.jpg?.image_url||''),
+    sourceUrl:safeUrl(x.url||`https://myanimelist.net/anime/${x.mal_id}`),
+    year:x.year?String(x.year):'',
+    emoji:'📺',platform:text(x.type||'',40),
+    tags:(Array.isArray(x.genres)?x.genres:[]).map(a=>text(a.name,30)).filter(Boolean).slice(0,5),
+    externalScore:Number.isFinite(Number(x.score)) && Number(x.score)>0?Number(x.score):null,
+    externalScoreSource:'MAL'
+  }));
+}
+export async function jikanSearch(query,fetcher=fetch,page=1){
+  const url=new URL('https://api.jikan.moe/v4/anime');
+  url.searchParams.set('q',query);url.searchParams.set('limit','12');url.searchParams.set('page',String(page));url.searchParams.set('sfw','true');
+  const payload=await readJSON(url.toString(),{},6500,fetcher);
+  return {items:normalizeJikan(payload),hasMore:!!payload.pagination?.has_next_page};
+}
+export function normalizeRAWG(payload){
+  return (Array.isArray(payload?.results)?payload.results:[]).filter(x=>Number.isInteger(x?.id)&&x.id>0).slice(0,12).map(x=>({
+    category:'game',provider:'rawg',providerId:String(x.id),name:text(x.name||'未命名游戏',100),
+    subtitle:text(x.released?`RAWG · ${x.released}`:'RAWG · 游戏',120),description:'',
+    coverUrl:safeUrl(x.background_image||''),
+    sourceUrl:safeUrl(`https://rawg.io/games/${encodeURIComponent(x.slug||String(x.id))}`),
+    year:/^\d{4}/.test(x.released||'')?x.released.slice(0,4):'',emoji:'🎮',
+    tags:(Array.isArray(x.genres)?x.genres:[]).map(a=>text(a.name,30)).filter(Boolean).slice(0,5),
+    platform:(Array.isArray(x.platforms)?x.platforms:[]).map(p=>p.platform?.name).filter(Boolean).slice(0,2).join(' / '),
+    externalScore:Number.isFinite(Number(x.rating)) && Number(x.rating)>0?Number(x.rating):null,
+    externalScoreSource:'RAWG',externalScoreMax:5
+  }));
+}
+export async function rawgSearch(query,fetcher=fetch,env=process.env,page=1){
+  const key=String(env.RAWG_API_KEY||'').trim();if(!key)return {configured:false,items:[],hasMore:false};
+  const url=new URL('https://api.rawg.io/api/games');
+  url.searchParams.set('key',key);url.searchParams.set('search',query);
+  url.searchParams.set('page',String(page));url.searchParams.set('page_size','12');
+  const payload=await readJSON(url.toString(),{},7500,fetcher);
+  return {configured:true,items:normalizeRAWG(payload),hasMore:!!payload.next};
+}
+
 export function normalizeAmap(payload){
   return (Array.isArray(payload?.pois)?payload.pois:[]).filter(x=>x?.id&&x?.name).slice(0,15).map(x=>({
     category:'place',provider:'amap',providerId:String(x.id),name:text(x.name,100),
@@ -111,12 +158,25 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,
   if(cached && cached.until>Date.now())return {...cached.data,cached:true};
   const notices=[];let items=[];let hasMore=false;
   if(category==='anime'||category==='game'){
+    let bangumiFailed=false;
     try{items=await bangumiSearch(category,query,fetcher,env,page);hasMore=items.length>=14;}
-    catch(e){notices.push('Bangumi 暂时不可用：'+errorMessage(e));}
-    if(category==='game' && env.IGDB_CLIENT_ID && env.IGDB_CLIENT_SECRET){
-      try{const igdb=await igdbSearch(query,fetcher,env,page);items.push(...igdb.items);hasMore=hasMore||igdb.items.length>=12;}
-      catch(e){notices.push('IGDB 暂时不可用：'+errorMessage(e));}
-    }else if(category==='game') notices.push('未配置 IGDB，当前只检索 Bangumi 游戏条目');
+    catch(e){bangumiFailed=true;notices.push('Bangumi 暂时不可用：'+errorMessage(e));}
+    if(category==='anime'&&(bangumiFailed||items.length===0)&&env.JIKAN_FALLBACK!=='0'){
+      try{const j=await jikanSearch(query,fetcher,page);items.push(...j.items);hasMore=hasMore||j.hasMore;
+        if(j.items.length)notices.push('已启用 MyAnimeList / Jikan 备用搜索；英文或日文关键词更容易匹配');
+      }catch(e){notices.push('Jikan / MAL 备用搜索暂时不可用：'+errorMessage(e));}
+    }
+    if(category==='game'){
+      // Game providers are independent. A failing IGDB auth must not suppress RAWG.
+      const searches=[];
+      if(env.IGDB_CLIENT_ID&&env.IGDB_CLIENT_SECRET)searches.push(igdbSearch(query,fetcher,env,page).then(r=>({source:'IGDB',...r})).catch(e=>({source:'IGDB',error:e})));
+      if(env.RAWG_API_KEY)searches.push(rawgSearch(query,fetcher,env,page).then(r=>({source:'RAWG',...r})).catch(e=>({source:'RAWG',error:e})));
+      for(const result of await Promise.all(searches)){
+        if(result.error)notices.push(result.source+' 暂时不可用：'+errorMessage(result.error));
+        else {items.push(...result.items);hasMore=hasMore||result.hasMore||result.items.length>=12;}
+      }
+      if(!searches.length)notices.push('如需更多游戏来源，可配置 IGDB 或 RAWG_API_KEY（需要来源署名）');
+    }
   }else{
     try{const result=await amapSearch(query,fetcher,env,page);items=result.items;hasMore=items.length>=15;
       if(!result.configured)notices.push('未配置高德 Web 服务 Key');

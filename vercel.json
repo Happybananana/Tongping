@@ -10,6 +10,9 @@
     "api/cover.js": {
       "maxDuration": 15
     },
+    "api/media.js": {
+      "maxDuration": 15
+    },
     "api/subject.js": {
       "maxDuration": 15
     }

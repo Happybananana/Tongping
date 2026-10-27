@@ -4,6 +4,7 @@ import "./videostore-theme.css";
 import "./v049-upgrade.css";
 import "./v050-departure.css";
 import "./v0531-podium-fix.css";
+import "./v054-mobile-fix.css";
 import {paginate} from './pagination.js';
 import {db, ready} from './cloud.js';
 import {findExistingCatalogItem} from './catalogMatch.js';
@@ -86,10 +87,11 @@ import {coverImageUrl} from './coverUrl.js';
   function httpsUrl(value){try{const u=new URL(String(value||''));return u.protocol==='https:'?u.href:''}catch(_){return ''}}
   const bangumiBadge=(item,small=false)=>item.provider==='bangumi'&&Number(item.bangumiScore)>0
     ? `<span class="bangumi-badge ${small?'bangumi-badge-small':''}" title="Bangumi 社区评分，不计入圈子榜单">BGM <b>${Number(item.bangumiScore).toFixed(1)}</b></span>` : '';
+  const externalBadge=item=>item.externalScoreSource && Number(item.externalScore)>0?`<span class="kind-chip" title="外部社区评分，不参与圈内平均分">${esc(item.externalScoreSource)} <b>${Number(item.externalScore).toFixed(1)} / ${item.externalScoreMax||10}</b></span>`:'';
   const itemKinds=item=>[item.platform, ...(Array.isArray(item.tags)?item.tags:[])].filter(Boolean).slice(0,5);
   const cover=(item,cl='')=>{
     const src = coverImageUrl(coverCache[item.id] || item.coverUrl);
-    return `<div class="cover ${esc(item.category)} ${cl} cover-${esc(item.id)}" data-cover-id="${esc(item.id)}" role="img" aria-label="${esc(item.name)}封面或占位插图"><span class="cover-glow"></span><span class="cover-symbol">${esc(item.emoji||CAT_EMOJI[item.category])}</span><span class="cover-grain"></span>${src?`<img class="cover-backdrop" src="${esc(src)}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()"/><img class="cover-photo" src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div>`
+    return `<div class="cover ${esc(item.category)} ${cl} cover-${esc(item.id)}" data-cover-id="${esc(item.id)}" role="img" aria-label="${esc(item.name)}封面或占位插图"><span class="cover-glow"></span><span class="cover-symbol">${esc(item.emoji||CAT_EMOJI[item.category])}</span><span class="cover-grain"></span><span class="cover-caption">RES·COVER</span>${src?`<img class="cover-backdrop" src="${esc(src)}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()"/><img class="cover-photo" src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div>`
   };
   // 旅行地点从百科读取开放缩略图；只用于浏览器展示，不把图片二进制打包进项目。
   async function enrichPlaceImages(){
@@ -167,7 +169,7 @@ import {coverImageUrl} from './coverUrl.js';
   }
   function discoverMatches(){const search=view.search.trim().toLocaleLowerCase();return data.items.filter(x=>x.category!=='place'&&(view.category==='all'||x.category===view.category)&&(!search||`${x.name} ${x.subtitle||''}`.toLocaleLowerCase().includes(search)));}
   function discoverList(){const matches=discoverMatches(),info=paginate(matches,view.localPage,LOCAL_PAGE_SIZE);view.localPage=info.page;
-    return info.items.length?info.items.map(x=>{const s=summarize(x);return `<div class="item-card">${cover(x,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${esc(x.id)}"><strong>${esc(x.name)}</strong></button><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${s.count?s.average.toFixed(1)+'圈内分 · '+s.count+'人':'暂无圈内评分'}</small><div class="remote-meta">${bangumiBadge(x,true)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}</div></div><button class="small-btn" data-action="record" data-id="${esc(x.id)}">${own(x.id)?'编辑记录':'＋ 记录'}</button></div>`}).join(''):'<div class="empty-state"><strong>片库暂无匹配条目</strong><p>试试下方在线搜索；如果没有结果，也可以手动创建。</p></div>';
+    return info.items.length?info.items.map(x=>{const s=summarize(x);return `<div class="item-card">${cover(x,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${esc(x.id)}"><strong>${esc(x.name)}</strong></button><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${s.count?s.average.toFixed(1)+'圈内分 · '+s.count+'人':'暂无圈内评分'}</small><div class="remote-meta">${bangumiBadge(x,true)}${externalBadge(x)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}</div></div><button class="small-btn" data-action="record" data-id="${esc(x.id)}">${own(x.id)?'编辑记录':'＋ 记录'}</button></div>`}).join(''):'<div class="empty-state"><strong>片库暂无匹配条目</strong><p>试试下方在线搜索；如果没有结果，也可以手动创建。</p></div>';
   }
   function discoverPager(){const info=paginate(discoverMatches(),view.localPage,LOCAL_PAGE_SIZE);return `<span class="pagination-summary">已收录 ${info.total} 部作品 · 每页 ${LOCAL_PAGE_SIZE} 部</span>${renderPager('local',info.page,info.totalPages)}`;}
   function localMatch(remoteItem){
@@ -183,7 +185,7 @@ import {coverImageUrl} from './coverUrl.js';
     const isTravel=category==='place';
     const cards=source.items.map((x,index)=>{
       const local=localMatch(x);
-      return `<div class="item-card remote-card ${isTravel?'station-remote-card':''}"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':'Bangumi')}</small><div class="remote-meta">${bangumiBadge(x,true)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}${(x.tags||[]).slice(0,2).map(t=>`<span class="kind-chip">${esc(t)}</span>`).join('')}</div></div><button class="small-btn" data-action="import-remote" data-source="${isTravel?'travel':'discover'}" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
+      return `<div class="item-card remote-card ${isTravel?'station-remote-card':''}"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':x.provider==='jikan'?'MAL / Jikan':x.provider==='rawg'?'RAWG':'Bangumi')}</small>${httpsUrl(x.sourceUrl)?`<a class="source-attribution" href="${esc(httpsUrl(x.sourceUrl))}" target="_blank" rel="noopener noreferrer">访问 ${esc(x.provider==='rawg'?'RAWG':x.provider==='jikan'?'MyAnimeList':'资料来源')} ↗</a>`:''}<div class="remote-meta">${bangumiBadge(x,true)}${externalBadge(x)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}${(x.tags||[]).slice(0,2).map(t=>`<span class="kind-chip">${esc(t)}</span>`).join('')}</div></div><button class="small-btn" data-action="import-remote" data-source="${isTravel?'travel':'discover'}" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
     }).join('');
     const tips=source.notices.length?`<p class="search-notices">${source.notices.map(esc).join('；')}</p>`:'';
     const current=Number(source.page)||1;

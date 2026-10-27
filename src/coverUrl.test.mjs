@@ -14,7 +14,16 @@ test('拒绝不允许的 Bangumi 路径与非 Bangumi HTTP',()=>{
   assert.equal(coverImageUrl('https://lain.bgm.tv/private/foo.jpg'),'');
   assert.equal(coverImageUrl('http://other.example/foo.jpg'),'');
 });
-test('保持 IGDB 等其他 HTTPS 图片路径不变',()=>{
+test('IGDB 等已知国外图床统一走同域安全图片网关',()=>{
   const img='https://images.igdb.com/igdb/image/upload/t_cover_big/abc.jpg';
-  assert.equal(coverImageUrl(img),img);
+  assert.equal(coverImageUrl(img),'/api/media?provider=igdb&path='+encodeURIComponent('/igdb/image/upload/t_cover_big/abc.jpg'));
+});
+
+test('旧版内置四部动画的 Bangumi 封面自动改为服务端代理',()=>{
+ for(const id of ['400602','10380','183878','1428'])assert.equal(coverImageUrl(`https://api.bgm.tv/v0/subjects/${id}/image?type=large`),`/api/cover?subject=${id}`);
+});
+test('MAL、RAWG 和 Steam 封面均改为同域图片代理',()=>{
+ assert.equal(coverImageUrl('https://cdn.myanimelist.net/images/anime/100/12345.jpg'),'/api/media?provider=mal&path='+encodeURIComponent('/images/anime/100/12345.jpg'));
+ assert.equal(coverImageUrl('https://media.rawg.io/media/games/aa/abc.jpg'),'/api/media?provider=rawg&path='+encodeURIComponent('/media/games/aa/abc.jpg'));
+ assert.equal(coverImageUrl('https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg'),'/api/media?provider=steam&path='+encodeURIComponent('/store_item_assets/steam/apps/1245620/library_600x900.jpg'));
 });

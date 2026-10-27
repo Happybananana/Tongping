@@ -1,0 +1,28 @@
+/* V0.5.4 — responsive hotfix loaded last so previous desktop styles cannot override it */
+@media (max-width: 760px) {
+  .feed-list { display:grid !important;grid-template-columns:minmax(0,1fr) !important;gap:16px !important;max-width:100%;padding-inline:0!important; }
+  .feed-list > .feed-card, .feed-list > .feed-card-feature { grid-column:1/-1 !important; width:100%; min-width:0; box-sizing:border-box; padding:17px!important; transform:none!important; }
+  .feed-list > .feed-card .content-row {display:grid;grid-template-columns: minmax(0,78px) minmax(0,1fr);gap:12px;align-items:start;min-width:0;}
+  .feed-list > .feed-card .content-row > .cover {width:78px!important;min-width:0!important;height:auto;aspect-ratio:3 / 4;}
+  .feed-list > .feed-card .feed-detail {min-width:0;max-width:100%;overflow-wrap:anywhere;}
+  .feed-list .record-title {white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%;font-size:17px!important;line-height:1.3;}
+  .feed-list .feed-ratingline {gap:8px;flex-wrap:wrap;max-width:100%;margin:13px 0 8px;}
+  .feed-list .feed-ratingline .rating {min-width:0!important;padding:10px 10px 8px!important;transform:none!important;max-width:100%;}
+  .feed-list .feed-ratingline .rating strong {font-size:clamp(28px,9vw,38px)!important;}
+  .feed-list .rating-label {align-self:center;font-size:9px;}
+  .feed-list .feed-user {min-width:0;gap:7px;}
+  .feed-list .feed-user .name {white-space:normal;overflow-wrap:anywhere;}
+  .feed-list .feed-user .tag {flex:0 0 auto;}
+  .feed-list .note {font-size:12px;max-width:100%;}
+  .feed-list .subbar {font-size:10px;gap:6px;flex-wrap:wrap;}
+  .feed-pager-wrap .page-controls {max-width:100%;flex-wrap:wrap;justify-content:center;}
+}
+@media (max-width:359px) {
+  .feed-list > .feed-card {padding:12px!important;}
+  .feed-list > .feed-card .content-row {grid-template-columns:64px minmax(0,1fr);gap:9px;}
+  .feed-list > .feed-card .content-row > .cover{width:64px!important;}
+  .feed-list .rating-label{display:none;}
+  .feed-list .feed-ratingline .rating strong{font-size:29px!important;}
+}
+.source-attribution{display:inline-flex;margin:6px 0 4px;align-self:start;font-size:11px;font-weight:800;text-decoration:underline;text-underline-offset:3px;color:#b73d36}
+.cover-caption{position:absolute;bottom:6px;left:5px;right:5px;z-index:1;pointer-events:none;color:#fffbdf;font:900 8px ui-monospace,monospace;text-align:center;letter-spacing:.08em;text-shadow:0 1px 3px #0009}
