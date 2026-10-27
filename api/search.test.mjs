@@ -40,3 +40,8 @@ test('Supabase 用户校验只接受 Auth /user 成功且有 id 的响应',async
   await assert.rejects(()=>verifySupabaseUser('',{fetcher,env}),e=>e.status===401);
   await assert.rejects(()=>verifySupabaseUser('token123',{fetcher:async()=>({ok:false,status:401}),env}),e=>e.status===401);
 });
+
+test('Vercel rejects invalid search page before hitting Supabase',async()=>{
+  const res=response();await handler({method:'GET',url:'/api/search?category=anime&q=%E8%8A%99%E8%8E%89%E8%8E%B2&page=101',headers:{}},res);
+  assert.equal(res.statusCode,400);
+});

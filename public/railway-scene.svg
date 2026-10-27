@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="680" viewBox="0 0 1400 680" preserveAspectRatio="xMidYMid slice">
+ <defs>
+  <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#163d35"/><stop offset=".62" stop-color="#5d7866"/><stop offset="1" stop-color="#a1a88b"/></linearGradient>
+  <linearGradient id="sun" x2="0" y2="1"><stop stop-color="#ffe7a1"/><stop offset="1" stop-color="#c8be80"/></linearGradient>
+  <linearGradient id="train" x2="0" y2="1"><stop stop-color="#476e5e"/><stop offset="1" stop-color="#17392f"/></linearGradient>
+  <pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".5" fill="#fff3ce" opacity=".12"/></pattern>
+ </defs>
+ <rect width="1400" height="680" fill="url(#sky)"/>
+ <circle cx="1100" cy="138" r="110" fill="url(#sun)" opacity=".8"/>
+ <path d="M0 360Q170 265 310 340T640 326T930 348T1240 281T1400 336V680H0Z" fill="#739280" opacity=".75"/>
+ <path d="M0 420Q180 365 370 390T720 375T1030 390T1400 352V680H0Z" fill="#496d5c"/>
+ <path d="M0 475Q270 415 570 464T1110 437T1400 451V680H0Z" fill="#2c5848"/>
+ <!-- Platform hall arches -->
+ <g opacity=".55" fill="none" stroke="#f4e2b0" stroke-width="9"><path d="M670 465V170Q720 90 795 170V465"/><path d="M864 465V145Q915 61 1000 145V465"/><path d="M1063 465V150Q1120 70 1205 150V465"/><path d="M1250 465V186Q1304 115 1368 186V465"/></g>
+ <path d="M575 460H1400V570H575Z" fill="#173b31"/>
+ <!-- Signal and platform clock -->
+ <g fill="none" stroke="#f3df9f" stroke-width="8"><path d="M835 322V555"/><circle cx="835" cy="315" r="26" fill="#253e35"/><path d="M835 315l11-9M835 315V300" stroke-width="3"/></g>
+ <g transform="translate(720 378)">
+  <path d="M0 104Q15 5 126 0H455Q515 0 555 62L594 102V190H0Z" fill="url(#train)" stroke="#dfdcac" stroke-width="4"/>
+  <path d="M116 35H468Q513 35 539 83L107 83Z" fill="#b3c7aa" opacity=".65"/>
+  <path d="M130 43H214V78H124Z M239 43H323V78H235Z M349 43H441V78H345Z" fill="#193f34" opacity=".9"/>
+  <path d="M13 116H586" stroke="#dfd08a" stroke-width="8"/>
+  <path d="M26 178H584" stroke="#122a24" stroke-width="20"/>
+  <g fill="#dbdab4"><circle cx="75" cy="189" r="17"/><circle cx="191" cy="189" r="17"/><circle cx="413" cy="189" r="17"/><circle cx="531" cy="189" r="17"/></g>
+  <text x="40" y="152" fill="#f5e5af" font-size="26" font-family="sans-serif" font-weight="700" letter-spacing="5">RESONANCE / RAIL</text>
+ </g>
+ <!-- Track -->
+ <path d="M0 590H1400M0 624H1400" stroke="#071e19" stroke-width="11"/>
+ <path d="M0 595H1400M0 629H1400" stroke="#d7c993" stroke-width="4"/>
+ <path d="M0 590L1400 670" stroke="#b1a379" stroke-width="12" stroke-dasharray="40 16"/>
+ <rect width="1400" height="680" fill="url(#grain)"/>
+ <rect x="0" y="0" width="1400" height="680" fill="none" stroke="#f6e6b0" stroke-width="8" opacity=".2"/>
+</svg>

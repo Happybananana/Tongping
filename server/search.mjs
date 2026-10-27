@@ -16,6 +16,8 @@ export function validateSearch(category, keyword) {
   return query;
 }
 
+export function validatePage(raw){const number=Number(raw??1);if(!Number.isSafeInteger(number)||number<1||number>100)throw Object.assign(new Error('页码必须在 1–100 之间'),{status:400});return number;}
+
 async function readJSON(url, opts={}, timeoutMs=7500, fetcher=fetch) {
   const response = await fetcher(url, { ...opts, signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error(`数据源返回 HTTP ${response.status}`);
@@ -58,16 +60,16 @@ export function normalizeAmap(payload){
   }));
 }
 
-export async function bangumiSearch(category,query,fetcher=fetch,env=process.env) {
+export async function bangumiSearch(category,query,fetcher=fetch,env=process.env,page=1) {
   const body = JSON.stringify({keyword:query,sort:'match',filter:{type:[category==='anime'?2:4],nsfw:false}});
-  const payload=await bangumiRequest('/v0/search/subjects?limit=14',{
+  const payload=await bangumiRequest(`/v0/search/subjects?limit=14&offset=${(page-1)*14}`,{
     method:'POST',headers:{'Content-Type':'application/json'},body
   },{fetcher,env});
   return normalizeBangumi(payload,category);
 }
 
 let tokenCache={value:'',expires:0};
-export async function igdbSearch(query,fetcher=fetch,env=process.env){
+export async function igdbSearch(query,fetcher=fetch,env=process.env,page=1){
   if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) return {items:[],configured:false};
   if (Date.now()+90_000>=tokenCache.expires) {
     const tokenUrl = new URL('https://id.twitch.tv/oauth2/token');
@@ -80,20 +82,20 @@ export async function igdbSearch(query,fetcher=fetch,env=process.env){
   }
   // APICalypse 防注入：所有引号、反斜杠和非文字字符均被规范化；不拼用户提供的字段表达式。
   const value=query.replace(/[\\"\r\n;]/g,' ').replace(/\s+/g,' ').trim();
-  const statement=`search "${value}"; fields id,name,summary,slug,url,cover.image_id,first_release_date; limit 12;`;
+  const statement=`search "${value}"; fields id,name,summary,slug,url,cover.image_id,first_release_date; limit 12; offset ${(page-1)*12};`;
   const payload=await readJSON('https://api.igdb.com/v4/games',{
     method:'POST',headers:{'Client-ID':env.IGDB_CLIENT_ID,'Authorization':`Bearer ${tokenCache.value}`,'Content-Type':'text/plain'},body:statement
   },8000,fetcher);
   return {items:normalizeIGDB(payload),configured:true};
 }
 
-export async function amapSearch(query,fetcher=fetch,env=process.env) {
+export async function amapSearch(query,fetcher=fetch,env=process.env,page=1) {
   if(!env.AMAP_WEB_KEY)return {items:[],configured:false};
   const url=new URL('https://restapi.amap.com/v5/place/text');
   url.searchParams.set('key',env.AMAP_WEB_KEY);
   url.searchParams.set('keywords',query);
   url.searchParams.set('page_size','15');
-  url.searchParams.set('page_num','1');
+  url.searchParams.set('page_num',String(page));
   const payload=await readJSON(url.toString(),{},6500,fetcher);
   if(String(payload.status)!=='1')throw new Error(`高德搜索失败：${text(payload.info||'未知错误',80)}`);
   return {items:normalizeAmap(payload),configured:true};
@@ -101,27 +103,28 @@ export async function amapSearch(query,fetcher=fetch,env=process.env) {
 
 const memo = new Map();
 const pending = new Map();
-async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env}={}){
+async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,page=1}={}){
   const query=validateSearch(category,keyword);
-  const key=`${category}:${query.toLowerCase()}`;
+  page=validatePage(page);
+  const key=`${category}:${query.toLowerCase()}:p${page}`;
   const cached=memo.get(key);
   if(cached && cached.until>Date.now())return {...cached.data,cached:true};
-  const notices=[];let items=[];
+  const notices=[];let items=[];let hasMore=false;
   if(category==='anime'||category==='game'){
-    try{items=await bangumiSearch(category,query,fetcher,env)}
+    try{items=await bangumiSearch(category,query,fetcher,env,page);hasMore=items.length>=14;}
     catch(e){notices.push('Bangumi 暂时不可用：'+errorMessage(e));}
     if(category==='game' && env.IGDB_CLIENT_ID && env.IGDB_CLIENT_SECRET){
-      try{const igdb=await igdbSearch(query,fetcher,env);items.push(...igdb.items)}
+      try{const igdb=await igdbSearch(query,fetcher,env,page);items.push(...igdb.items);hasMore=hasMore||igdb.items.length>=12;}
       catch(e){notices.push('IGDB 暂时不可用：'+errorMessage(e));}
     }else if(category==='game') notices.push('未配置 IGDB，当前只检索 Bangumi 游戏条目');
   }else{
-    try{const result=await amapSearch(query,fetcher,env);items=result.items;
+    try{const result=await amapSearch(query,fetcher,env,page);items=result.items;hasMore=items.length>=15;
       if(!result.configured)notices.push('未配置高德 Web 服务 Key');
     }catch(e){notices.push('高德地点搜索暂时不可用：'+errorMessage(e));}
   }
   // 同源去重；不同来源即使同名也保留，入库时再检查已有作品名称。
   const seen=new Set();items=items.filter(x=>{const id=x.provider+':'+x.providerId;if(seen.has(id))return false;seen.add(id);return true;}).slice(0,25);
-  const data={items,notices,category,query,cached:false};
+  const data={items,notices,category,query,page,hasMore,cached:false};
   memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data});
   if(memo.size>250)memo.delete(memo.keys().next().value);
   return data;
@@ -130,9 +133,10 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env}
 /** Coalesce simultaneous identical queries on a warm Vercel instance. */
 export async function searchCatalog(category, keyword, options = {}) {
   const validated = validateSearch(category,keyword);
-  const key = `${category}:${validated.toLowerCase()}`;
+  const page=validatePage(options.page??1);
+  const key = `${category}:${validated.toLowerCase()}:p${page}`;
   if (pending.has(key)) return pending.get(key);
-  const p = runSearchCatalog(category, validated, options);
+  const p = runSearchCatalog(category, validated, {...options,page});
   pending.set(key,p);
   try { return await p; } finally { if(pending.get(key) === p) pending.delete(key); }
 }

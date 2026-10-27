@@ -2,7 +2,7 @@
  * Same-origin /api/search on Vercel. Do not prefix IGDB/Twitch/Amap secrets with VITE_.
  * This function does not proxy Supabase data; the existing browser SDK still uses RLS.
  */
-import {validateSearch,searchCatalog} from '../server/search.mjs';
+import {validateSearch,searchCatalog,validatePage} from '../server/search.mjs';
 import {verifySupabaseUser} from '../server/auth.mjs';
 
 // Best-effort warm-instance rate limiting; configure Vercel Firewall rate limiting for production.
@@ -25,10 +25,11 @@ export default async function handler(req,res){
     const url=new URL(req.url||'/api/search','https://localhost');
     const category=url.searchParams.get('category');
     const query=validateSearch(category,url.searchParams.get('q'));
+    const page=validatePage(url.searchParams.get('page')||1);
     const token=(/^Bearer (.+)$/i.exec(req.headers.authorization||'')||[])[1];
     const userId=await verifySupabaseUser(token);
     if(!allowed(userId))return send(res,429,{error:'搜索过于频繁，请稍后再试'});
-    const result=await searchCatalog(category,query);
+    const result=await searchCatalog(category,query,{page});
     return send(res,200,result);
   }catch(error){
     const status=[400,401,403,429,503].includes(error.status)?error.status:502;

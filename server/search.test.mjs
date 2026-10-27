@@ -41,3 +41,15 @@ test('同一个瞬间的两次搜索在暖实例内共用一次请求',async()=>
  const [a,b]=await Promise.all([searchCatalog('anime','并发去重测试',opts),searchCatalog('anime','并发去重测试',opts)]);
  assert.equal(calls,1);assert.deepEqual(a.items,b.items);
 });
+
+test('Online pagination has bounded page numbers and Bangumi offset',async()=>{
+  const {validatePage,bangumiSearch,amapSearch}=await import('./search.mjs');
+  assert.equal(validatePage('2'),2);
+  for(const n of [0,-1,1.5,101,'abc']) assert.throws(()=>validatePage(n),e=>e.status===400);
+  const bangumiCalls=[];
+  await bangumiSearch('anime','新番检索',(url,opts)=>{bangumiCalls.push(url);return Promise.resolve({ok:true,json:async()=>({data:[]})});},{BANGUMI_USER_AGENT:'test'},2);
+  assert.match(bangumiCalls[0],/offset=14/);
+  let amapURL='';
+  await amapSearch('杭州',(url)=>{amapURL=url;return Promise.resolve({ok:true,json:async()=>({status:'1',pois:[]})});},{AMAP_WEB_KEY:'test'},3);
+  assert.match(amapURL,/page_num=3/);
+});

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+ <defs>
+  <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#343943"/><stop offset=".55" stop-color="#57515c"/><stop offset="1" stop-color="#23252d"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#514752"/><stop offset=".6" stop-color="#2b2b34"/><stop offset="1" stop-color="#14161c"/></linearGradient>
+  <linearGradient id="light" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbed91" stop-opacity=".34"/><stop offset="1" stop-color="#fbed91" stop-opacity="0"/></linearGradient>
+  <radialGradient id="halo"><stop stop-color="#fff3b8" stop-opacity=".8"/><stop offset=".2" stop-color="#fbdc6b" stop-opacity=".34"/><stop offset="1" stop-color="#fbdc6b" stop-opacity="0"/></radialGradient>
+  <pattern id="paper" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".6" fill="#ffffff" opacity=".05"/></pattern>
+  <pattern id="cases" width="65" height="92" patternUnits="userSpaceOnUse">
+    <rect x="0" y="0" width="64" height="91" fill="#19191e" stroke="#4b4648" stroke-width="2"/>
+    <rect x="7" y="10" width="49" height="67" rx="1" fill="#a69a6f"/>
+    <path d="M8 20L55 68M55 19L8 69" stroke="#ccbc8b" stroke-width="6" opacity=".6"/>
+    <rect x="6" y="76" width="52" height="9" fill="#151519"/><path d="M15 81h32" stroke="#fae25e" stroke-width="2"/>
+  </pattern>
+  <pattern id="tile" width="180" height="100" patternUnits="userSpaceOnUse" patternTransform="skewX(-25)"><path d="M0 0H180V100H0Z" fill="none" stroke="#828181" stroke-width="1.8" opacity=".22"/></pattern>
+  <filter id="glow"><feGaussianBlur stdDeviation="20"/></filter>
+ </defs>
+ <rect width="1600" height="900" fill="url(#wall)"/>
+ <path d="M0 0H1600V600L0 800Z" fill="#3e3b45"/>
+ <path d="M0 735L1600 568V900H0Z" fill="url(#floor)"/>
+ <path d="M0 735L1600 568V900H0Z" fill="url(#tile)"/>
+ <!-- diagonal ceiling strips -->
+ <path d="M0 124L1600 28" stroke="#1b1d22" stroke-width="64"/>
+ <path d="M0 120L1600 24" stroke="#c1ae69" stroke-width="7" opacity=".6"/>
+ <path d="M0 222L1600 140" stroke="#1d1f26" stroke-width="22" opacity=".6"/>
+ <!-- shelf structure left -->
+ <path d="M0 202L602 190V770L0 829Z" fill="#211f26" stroke="#100f16" stroke-width="11"/>
+ <path d="M0 219L582 207V720L0 790Z" fill="#36323b"/>
+ <path d="M10 230L578 218V345L10 363Z" fill="url(#cases)" opacity=".95"/>
+ <path d="M10 391L578 363V500L10 533Z" fill="url(#cases)" opacity=".91"/>
+ <path d="M10 566L578 526V662L10 712Z" fill="url(#cases)" opacity=".84"/>
+ <path d="M0 363L593 342M0 537L593 493M0 717L593 664" stroke="#121319" stroke-width="24"/>
+ <path d="M0 350L593 332M0 525L593 484M0 705L593 653" stroke="#f2d373" stroke-width="5" opacity=".55"/>
+ <!-- far wall cinema poster -->
+ <rect x="664" y="175" width="265" height="362" rx="9" fill="#111319" stroke="#f7df79" stroke-width="10"/>
+ <rect x="682" y="194" width="230" height="322" fill="#d6a076"/>
+ <circle cx="803" cy="316" r="93" fill="#f3e77b"/>
+ <path d="M700 471L802 288L910 472Z" fill="#222a36"/>
+ <path d="M702 475H912" stroke="#191b21" stroke-width="22"/>
+ <text x="802" y="229" font-size="22" fill="#222329" font-family="monospace" font-weight="900" text-anchor="middle">TONIGHT'S</text>
+ <text x="802" y="255" font-size="22" fill="#222329" font-family="monospace" font-weight="900" text-anchor="middle">FEATURE</text>
+ <text x="804" y="501" font-size="27" fill="#f9e77d" font-family="monospace" font-weight="900" text-anchor="middle">PLAY IT AGAIN</text>
+ <!-- right side big CRT -->
+ <g transform="translate(1110 239)">
+  <rect x="-12" y="-15" width="438" height="322" rx="30" fill="#1a1b20" stroke="#07070b" stroke-width="12"/>
+  <rect x="17" y="12" width="329" height="247" rx="19" fill="#171b22" stroke="#858173" stroke-width="10"/>
+  <rect x="30" y="27" width="301" height="218" rx="40" fill="#89d7cd"/>
+  <path d="M30 70C135 0 250 10 330 69V190C224 251 128 244 30 199Z" fill="#5eaab4" opacity=".75"/>
+  <path d="M45 48L315 228" stroke="#fff9d1" stroke-width="13" opacity=".28"/>
+  <g stroke="#25282b" stroke-width="5" opacity=".3"><path d="M31 83H328M31 115H328M31 147H328M31 179H328M31 212H328"/></g>
+  <text x="178" y="154" font-size="62" font-weight="900" font-family="Arial,sans-serif" text-anchor="middle" fill="#f6e75b">PLAY</text>
+  <text x="180" y="184" font-size="18" font-family="monospace" text-anchor="middle" fill="#17232b" letter-spacing="7">▶ 00:04:08</text>
+  <circle cx="380" cy="68" r="13" fill="#e7dc8d"/><circle cx="380" cy="111" r="13" fill="#e7dc8d"/><rect x="366" y="183" width="32" height="9" rx="4" fill="#767873"/><rect x="366" y="209" width="32" height="9" rx="4" fill="#767873"/>
+ </g>
+ <!-- counter -->
+ <path d="M930 620L1610 535V751L910 876Z" fill="#17181e" stroke="#09090d" stroke-width="10"/>
+ <path d="M898 604L1600 515V561L905 667Z" fill="#c09b63" stroke="#211d1b" stroke-width="10"/>
+ <path d="M928 668L1610 562V762L928 862Z" fill="#38343b"/>
+ <path d="M947 695L1580 602V727L947 829Z" fill="#302f35" stroke="#69636b" stroke-width="5"/>
+ <path d="M980 720L1537 634M980 764L1537 680" stroke="#f5d67b" stroke-width="5" opacity=".21"/>
+ <!-- reflection and practical lights -->
+ <ellipse cx="1250" cy="240" rx="280" ry="240" fill="url(#halo)" opacity=".3"/>
+ <path d="M1020 100L1600 37V610L1020 730Z" fill="url(#light)" opacity=".55"/>
+ <rect width="1600" height="900" fill="url(#paper)"/>
+</svg>
