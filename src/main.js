@@ -5,6 +5,7 @@ import "./v049-upgrade.css";
 import "./v050-departure.css";
 import "./v0531-podium-fix.css";
 import "./v054-mobile-fix.css";
+import "./v056-flow.css";
 import {paginate} from './pagination.js';
 import {db, ready} from './cloud.js';
 import {findExistingCatalogItem} from './catalogMatch.js';
@@ -26,7 +27,7 @@ import {coverImageUrl} from './coverUrl.js';
   let authMode = 'login';
   const NAV = [
     {id:'feed',name:'店内放映',icon:'home'}, {id:'discover',name:'找片',icon:'compass'},
-    {id:'new',name:'新录入',icon:'plus'}, {id:'circle',name:'好友频道',icon:'users'},
+    {id:'circle',name:'好友频道',icon:'users'},
     {id:'travel',name:'沿途车站',icon:'train'}, {id:'me',name:'我的录像柜',icon:'user'}
   ];
 
@@ -121,7 +122,14 @@ import {coverImageUrl} from './coverUrl.js';
   const avatar=(uid)=>`<span class="avatar ${uid===ME?'':`user-${Math.max(0,USERS.findIndex(x=>x.id===uid))%5}`} ">${esc(userById(uid).name.slice(-1))}</span>`;
   function cats(active,action) {return `<div class="filters">${CATEGORIES.map(c=>`<button class="filter-btn ${active===c.id?'selected':''}" data-action="${action}" data-category="${c.id}">${c.name}</button>`).join('')}</div>`}
   function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('visible'),2700)}
-  function nav(){const build=(mobile=false)=>NAV.map(n=>mobile?`<button class="${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''} ${n.id==='new'?'add-item':''}" data-action="${n.id==='new'?'new-record':'navigate'}" ${n.id==='new'?'':`data-page="${n.id}"`}><span class="bottom-icon">${icon(n.icon,21)}</span><span>${n.name}</span></button>`:`<button class="nav-button ${view.page===n.id?'active':''}" data-action="${n.id==='new'?'new-record':'navigate'}" ${n.id==='new'?'':`data-page="${n.id}"`}><span class="nav-icon">${icon(n.icon,19)}</span><span>${n.name}</span>${(n.id===view.page||(view.page==='detail'&&n.id===view.returnPage))?'<span class="nav-active-dot"></span>':''}</button>`).join('');$('side-nav').innerHTML=build();$('bottom-nav').innerHTML=build(true);$('top-nav').innerHTML=NAV.filter(n=>n.id!=='new').map(n=>`<button class="top-nav-link ${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''}" data-action="navigate" data-page="${n.id}"><span>${n.name}</span></button>`).join('')}
+  function nav(){
+    const build=(mobile=false)=>NAV.map(n=>mobile
+      ? `<button class="${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''}" data-action="navigate" data-page="${n.id}"><span class="bottom-icon">${icon(n.icon,21)}</span><span>${n.name}</span></button>`
+      : `<button class="nav-button ${view.page===n.id?'active':''}" data-action="navigate" data-page="${n.id}"><span class="nav-icon">${icon(n.icon,19)}</span><span>${n.name}</span>${(n.id===view.page||(view.page==='detail'&&n.id===view.returnPage))?'<span class="nav-active-dot"></span>':''}</button>`).join('');
+    $('side-nav').innerHTML=build();
+    $('bottom-nav').innerHTML=build(true);
+    $('top-nav').innerHTML=NAV.map(n=>`<button class="top-nav-link ${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''}" data-action="navigate" data-page="${n.id}"><span>${n.name}</span></button>`).join('');
+  }
   function side(){const rated=ownRecords().filter(isRated);const ranked=data.items.map(summarize).filter(x=>x.count).sort((a,b)=>b.average-a.average).slice(0,3);$('right-rail').innerHTML=`
     <div class="side-welcome"><span class="side-flower">✺</span><div class="side-welcome-kicker">A NOTE FROM THE VIDEO STORE</div><h3>生活值得<br>被认真收藏。</h3><p>一场游戏，一段旅程，一部留在心里的动画。把这些微小的闪光，慢慢整理成自己的片单。</p><div class="side-line"></div><span class="side-welcome-footer">${icon('spark',15)} SOMEWHERE TO BELONG</span></div>
     <div class="panel side-panel"><div class="panel-head"><h4>圈内好评 <span class="side-dot">●</span></h4><button class="action-link" data-action="navigate" data-page="circle">更多 ${icon('arrow',13)}</button></div><div class="small-stack">${ranked.map((x,i)=>`<button class="clickable side-rank" data-action="detail" data-id="${x.item.id}"><span class="side-rank-num">0${i+1}</span>${cover(x.item,'rank-cover')}<span class="side-rank-name">${esc(x.item.name)}<small>${x.count} 人评价</small></span><b>${x.average.toFixed(1)}</b></button>`).join('')}</div></div>
@@ -143,7 +151,7 @@ import {coverImageUrl} from './coverUrl.js';
       <div class="hero-content"><span class="hero-kicker">YOUR LITTLE CORNER OF POP CULTURE</span>
         <h1>生活不止<br><span class="headline-serif">一种频道<span class="period">。</span></span></h1>
         <p>正在追的番、刚通关的游戏、想去的地方。<br>把热爱录成磁带，分享给同频的朋友。</p>
-        <div class="hero-actions"><button class="hero-button" data-action="new-record">＋ 录入新体验 <span>${icon('arrow',17)}</span></button><button class="hero-text-button" data-action="navigate" data-page="discover">浏览全部片单 ${icon('arrow',15)}</button></div>
+        <div class="hero-actions"><button class="hero-button" data-action="navigate" data-page="discover">⌕ 找片并记录 <span>${icon('arrow',17)}</span></button><button class="hero-text-button" data-action="navigate" data-page="discover">浏览全部片单 ${icon('arrow',15)}</button></div>
       </div>
       <div class="hero-showcase" aria-hidden="true"><div class="showcase-disc">● REC <small>00:04:08</small></div><div class="showcase-vhs tape-one"><span>◉</span><strong>PLAY<br>YOUR<br>STORY</strong><small>001 / ANIME</small></div><div class="showcase-vhs tape-two"><span>▶</span><strong>NO SIGNAL?<br>KEEP PLAYING.</strong><small>002 / GAMES</small></div><div class="showcase-vhs tape-three"><span>✳</span><strong>TRAVEL<br>LOG</strong><small>003 / PLACES</small></div><div class="showcase-sticker">GOOD<br>VIBES<br>ONLY <b>↗</b></div></div>
       <div class="hero-index"><span>↓ SCROLL TO TUNE IN</span><span class="scroll-track"><b></b></span><span>CH. 01 / 04</span></div>
@@ -153,7 +161,7 @@ import {coverImageUrl} from './coverUrl.js';
     ${chapterPassage()}
     ${featuredSelections()}
     <div class="feed-section-head"><div><span class="eyebrow">NEW RELEASES / FRIEND FREQUENCY <span class="eyebrow-dot">✧</span></span><h2 class="section-title">朋友正在播放<span class="tiny-spark"> ✳</span></h2><p class="section-sub">新番与新游，每一天都有新节目；旅行故事请到「沿途车站」。</p><div class="feed-section-meta"><span class="feed-count">${feedInfo.total} 条动态</span>${feedInfo.totalPages>1?`<span class="feed-page-chip">PAGE ${feedInfo.page}/${feedInfo.totalPages}</span>`:''}</div></div><button class="btn-ghost feed-head-btn" data-action="navigate" data-page="circle">圈内榜单 ${icon('arrow',15)}</button></div>
-    <div class="feed-list">${!feedInfo.items.length?'<div class="panel empty-state"><strong>圈子里还没有动态</strong><p>记录第一条体验，和朋友一起慢慢积累回忆。</p><button class="primary-btn" data-action="new-record">＋ 记录体验</button></div>':''}${feedInfo.items.map((r,index)=>{const item=itemById(r.itemId);if(!item)return '';return `<article class="panel feed-card ${index===0?'feed-card-feature':''}"><div class="feed-user">${avatar(r.userId)}<div><div class="name">${esc(userById(r.userId).name)} <span class="user-action">${esc(labelStatus(item.category,r.status))}了</span></div><div class="meta">${notifyAge(r.updatedAt)} · 分享了一条体验</div></div><span class="spacer"></span><span class="tag tag-${item.category}">${CAT_EMOJI[item.category]} ${CAT_NAME[item.category]}</span></div>
+    <div class="feed-list">${!feedInfo.items.length?'<div class="panel empty-state"><strong>圈子里还没有动态</strong><p>记录第一条体验，和朋友一起慢慢积累回忆。</p><button class="primary-btn" data-action="navigate" data-page="discover">⌕ 去找片并记录</button></div>':''}${feedInfo.items.map((r,index)=>{const item=itemById(r.itemId);if(!item)return '';return `<article class="panel feed-card ${index===0?'feed-card-feature':''}"><div class="feed-user">${avatar(r.userId)}<div><div class="name">${esc(userById(r.userId).name)} <span class="user-action">${esc(labelStatus(item.category,r.status))}了</span></div><div class="meta">${notifyAge(r.updatedAt)} · 分享了一条体验</div></div><span class="spacer"></span><span class="tag tag-${item.category}">${CAT_EMOJI[item.category]} ${CAT_NAME[item.category]}</span></div>
       <div class="content-row">${cover(item)}<div class="feed-detail"><div class="feed-item-sub">${esc(item.subtitle||CAT_NAME[item.category])}</div><button class="record-title clickable" data-action="detail" data-id="${item.id}">${esc(item.name)}</button><div class="feed-ratingline">${isRated(r)?`<span class="rating" aria-label="个人评分 ${r.rating.toFixed(1)} / 10"><em>MY SCORE</em><strong>${r.rating.toFixed(1)}</strong><small> / 10</small></span><span class="rating-label">${r.rating>=9?'特别喜欢':r.rating>=8?'值得体验':'我的评分'}</span>`:`<span class="tag gray">暂未评分</span>`}</div>${r.note?`<div class="note">${r.spoiler?'◈ 剧透内容已隐藏，进入作品详情后可查看':`“${esc(r.note)}”`}</div>`:''}</div></div><div class="subbar"><span>${icon('users',14)} ${visibleRatings(item.id).length} 位伙伴打过分</span><span class="spacer"></span><button class="action-link" data-action="detail" data-id="${item.id}">查看评价 ${icon('arrow',14)}</button></div></article>`}).join('')}</div>
     ${feedInfo.totalPages>1?`<div class="feed-pager-wrap"><span class="pagination-summary">最新动态分页展示 · 每页 ${FEED_PAGE_SIZE} 条</span>${renderPager('feed',feedInfo.page,feedInfo.totalPages)}</div>`:''}`}
   const FEED_PAGE_SIZE = 8;
@@ -259,29 +267,32 @@ import {coverImageUrl} from './coverUrl.js';
       if(view.page==='detail'&&view.detailId===id)$('page').innerHTML=detailPage();
     }catch(e){console.info('[同频] Bangumi 资料暂时不可用',e.message)}
   }
-  async function importRemote(index,origin='discover'){
+  async function importRemote(index,origin='discover',button=null){
     if(isBusy)return;
     const item=(origin==='travel'?travelRemote:remote).items[Number(index)];
     if(!item)return;
+    const originalLabel=button?.textContent;
     try{
       isBusy=true;
+      if(button){button.disabled=true;button.textContent='正在加入片库…'}
       let existing=localMatch(item);
-      let enriched=item;
-      if(!existing && item.provider==='bangumi'){
-        try{enriched=await fetchBangumiDetail(item)||item;}catch(_){/* 在线搜索已有评分与分类，可直接入库 */}
-      }
       if(!existing){
+        // Search response already has enough data to import. Do not block scoring
+        // on an additional Bangumi detail request that may time out cross-region.
         existing=await createCatalogItem({
-          category:enriched.category,name:enriched.name,subtitle:enriched.subtitle,description:enriched.description,
-          coverUrl:enriched.coverUrl,sourceUrl:enriched.sourceUrl,year:enriched.year,
-          provider:enriched.provider,providerItemId:enriched.providerId,emoji:enriched.emoji,
-          tags:enriched.tags,platform:enriched.platform,bangumiScore:enriched.bangumiScore,
-          bangumiRatingTotal:enriched.bangumiRatingTotal,bangumiRank:enriched.bangumiRank
+          category:item.category,name:item.name,subtitle:item.subtitle,description:item.description,
+          coverUrl:item.coverUrl,sourceUrl:item.sourceUrl,year:item.year,
+          provider:item.provider,providerItemId:item.providerId,emoji:item.emoji,
+          tags:item.tags,platform:item.platform,bangumiScore:item.bangumiScore,
+          bangumiRatingTotal:item.bangumiRatingTotal,bangumiRank:item.bangumiRank
         });
       }
+      // The selected catalog row is authoritative. Never fall back to the first game.
+      if(!existing?.id)throw Error('无法确认导入作品，请稍后重试');
+      if(!itemById(existing.id))data.items.push(existing);
       recordForm(existing.id);
     }catch(err){toast('导入条目失败：'+displayError(err));}
-    finally{isBusy=false;}
+    finally{isBusy=false;if(button?.isConnected){button.disabled=false;button.textContent=originalLabel}}
   }
   // 旅行地点独立子频道：保留同一个 catalog_items + experiences 数据源，不迁移/复制原记录。
   function travelMatches(){const q=view.travelSearch.trim().toLocaleLowerCase();return data.items.filter(x=>x.category==='place'&&(!q||`${x.name} ${x.subtitle||''}`.toLocaleLowerCase().includes(q)));}
@@ -346,7 +357,7 @@ import {coverImageUrl} from './coverUrl.js';
     }
     return mine.map(r=>{const item=itemById(r.itemId);return `<div class="item-card">${cover(item,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${item.id}"><strong>${esc(item.name)}</strong></button><small>${CAT_NAME[item.category]} · ${labelStatus(item.category,r.status)} · ${r.visibility==='private'?'🔒 仅自己可见':'👥 圈内可见'}</small><div class="remote-meta">${bangumiBadge(item,true)}</div></div><div style="text-align:right"><div class="rating" style="font-size:17px">${isRated(r)?r.rating.toFixed(1):'—'}</div><button class="link-btn" data-action="record" data-id="${item.id}">编辑</button></div></div>`}).join('');
   }
-  function me(){const mine=ownRecords(),rated=mine.filter(isRated);return `<div class="locker-utility"><span>MY VIDEO LOCKER / 04 · 私人录像柜</span><button class="primary-btn" data-action="new-record">＋ 添加记录</button></div>
+  function me(){const mine=ownRecords(),rated=mine.filter(isRated);return `<div class="locker-utility"><span>MY VIDEO LOCKER / 04 · 私人录像柜</span><button class="primary-btn" data-action="navigate" data-page="discover">⌕ 去找片</button></div>
     <div class="stats"><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='game').length}</strong><span>🎮 游戏</span></div><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='anime').length}</strong><span>📺 动画</span></div><button type="button" class="stat stat-travel-gate" data-action="navigate" data-page="travel"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='place').length}</strong><span>🚆 地点 · 去沿途车站 ↗</span></button></div>
     <section class="locker-controls"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div><div class="display-toggle" role="group" aria-label="收藏展示方式"><button data-action="personal-display" data-display="shelf" class="${view.personalDisplay==='shelf'?'selected':''}" aria-pressed="${view.personalDisplay==='shelf'}">▣ MIXTAPE 磁带馆</button><button data-action="personal-display" data-display="list" class="${view.personalDisplay==='list'?'selected':''}" aria-pressed="${view.personalDisplay==='list'}">☷ 列表</button></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></section>
     <div class="panel"><h2 class="section-title">账号与云端档案</h2><p class="help-copy">已登录：${esc(authUser?.email||'')}。个人记录保存在 Supabase；导入旧版记录时默认设为“仅自己可见”。</p>
@@ -470,8 +481,11 @@ import {coverImageUrl} from './coverUrl.js';
       }
       throw error;
     }
-    await refreshAll(false);
-    return mapCatalog(inserted);
+    const created=mapCatalog(inserted);
+    // Insert is committed and returned by Supabase. Make it available to the
+    // rating form immediately, without waiting for a potentially stale refresh.
+    if(!itemById(created.id))data.items.push(created);
+    return created;
   }
   function validatedEmail(value){
     const email=String(value||'').trim().toLowerCase();
@@ -576,11 +590,20 @@ import {coverImageUrl} from './coverUrl.js';
   function openModal(html){$('modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-background"><div class="modal" role="dialog" aria-modal="true" aria-label="编辑体验">${html}</div></div>`}
   function closeModal(){$('modal-root').innerHTML=''}
   function modalTop(title){return `<div class="modal-head"><h2>${title}</h2><button class="close-btn" data-action="close" aria-label="关闭">×</button></div>`}
-  function recordForm(id=''){const item = itemById(id)||null,rec=item?own(id):null;const cat=item?.category||'game';const first=(data.items.find(x=>x.category===cat)||{}).id||'';const selected=id||first;
-    openModal(`${modalTop(rec?'编辑我的体验':'添加体验记录')}<form id="record-form"><div class="form-field"><label for="record-category">类别</label><select class="form-control" id="record-category" name="category">${selectionOptions([['game','🎮 游戏'],['anime','📺 动画'],['place','📍 旅行影像']],cat)}</select></div><div class="form-field"><label for="record-item">作品 / 地点</label><select class="form-control" id="record-item" name="itemId">${data.items.filter(x=>x.category===cat).map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button type="button" class="link-btn" data-action="new-item" style="justify-self:start">找不到？手动创建新条目 →</button></div>
+  function recordForm(id){
+    const item=itemById(id);
+    if(!item?.id){toast('作品资料尚未载入，请返回「找片」重新选择');return}
+    const rec=own(item.id),cat=item.category;
+    openModal(`${modalTop(rec?'编辑我的体验':'为这部作品评分')}<form id="record-form">
+    <div class="record-focus" aria-label="当前评分作品：${esc(item.name)}">
+      ${cover(item,'record-focus-cover')}
+      <div class="record-focus-copy"><span>NOW RECORDING / ${esc(CAT_NAME[cat])}</span><strong>${esc(item.name)}</strong><small>${esc(item.subtitle||'已加入同频共享片库')}</small><em>当前已锁定作品，避免评分错记。</em></div>
+    </div>
+    <input type="hidden" name="itemId" value="${esc(item.id)}"/>
     <div class="form-grid"><div class="form-field"><label for="record-status">体验状态</label><select class="form-control" id="record-status" name="status">${selectionOptions(STATUS[cat],rec?.status||'done')}</select></div><div class="form-field"><label for="record-rating">我的评分（可选）</label><input class="form-control" id="record-rating" name="rating" type="number" inputmode="decimal" placeholder="暂不评分" step="0.5" min="0.5" max="10" value="${rec&&isRated(rec)?rec.rating:''}"/></div></div>
     <div class="form-field"><label for="record-note">简短评价（可选）</label><textarea class="form-control" id="record-note" name="note" maxlength="2000" placeholder="你的真实感受，几句话就够了…">${esc(rec?.note||'')}</textarea><label class="spoiler-switch"><input type="checkbox" name="spoiler" ${rec?.spoiler?'checked':''}/> 这条短评包含剧透，默认隐藏</label></div><div class="form-field"><label for="record-visibility">可见范围</label><select class="form-control" id="record-visibility" name="visibility">${selectionOptions([['circle','👥 圈内可见'],['private','🔒 仅自己可见']],rec?.visibility||'circle')}</select></div>
-    <div class="modal-actions">${rec?'<button type="button" class="btn-ghost danger" data-action="delete" data-id="'+esc(rec.itemId)+'">删除记录</button>':''}<button class="btn-ghost" type="button" data-action="close">取消</button><button class="primary-btn" type="submit">保存记录</button></div></form>`)}
+    <div class="modal-actions">${rec?'<button type="button" class="btn-ghost danger" data-action="delete" data-id="'+esc(rec.itemId)+'">删除记录</button>':''}<button class="btn-ghost" type="button" data-action="close">取消</button><button class="primary-btn" type="submit">保存记录</button></div></form>`);
+  }
   function newItemForm(initialCategory='game'){openModal(`${modalTop('创建一个新条目')}<form id="item-form"><div class="form-field"><label for="item-category">类别</label><select class="form-control" name="category" id="item-category">${selectionOptions([['game','🎮 游戏'],['anime','📺 动画'],['place','📍 旅行影像']],initialCategory)}</select></div><div class="form-field"><label for="item-name">名称 *</label><input class="form-control" name="name" id="item-name" maxlength="100" required placeholder="例如：京都、空洞骑士"/></div><div class="form-field"><label for="item-subtitle">补充信息（可选）</label><input class="form-control" name="subtitle" id="item-subtitle" maxlength="120" placeholder="例如：日本 · 城市 / 英文名"/></div><div class="form-field"><label for="item-cover">封面图片链接（可选）</label><input class="form-control" name="coverUrl" type="url" id="item-cover" placeholder="https://...（填写图片直链）"/><span class="field-hint">暂仅支持 HTTPS 图片链接；加载失败会显示渐变封面。</span></div><p class="help-copy">手动创建的条目可直接用于你的评分与圈内榜单。在线搜索目前已接入 Bangumi、IGDB 与高德；手动条目将独立保存到共享库。</p><div class="modal-actions"><button class="btn-ghost" type="button" data-action="close">取消</button><button class="primary-btn" type="submit">创建并记录</button></div></form>`)}
   function ratingDistribution(id){
     const scores=visibleRatings(id).map(r=>r.rating);
@@ -638,15 +661,15 @@ import {coverImageUrl} from './coverUrl.js';
   }
   function handleAction(target,clickEvent){const action=target.dataset.action;
     if(action==='navigate'){location.hash=target.dataset.page;syncRoute()}
-    else if(action==='new-record')recordForm();
-    else if(action==='travel-record'){const place=data.items.find(x=>x.category==='place');if(place)recordForm(place.id);else newItemForm('place')}
+    else if(action==='new-record'){location.hash='discover';syncRoute()}
+    else if(action==='travel-record'){$('travel-search-input')?.focus();toast('先搜索或选择地点，再记录体验')}
     else if(action==='record')recordForm(target.dataset.id);
     else if(action==='detail')detail(target.dataset.id);
     else if(action==='back'){location.hash=view.returnPage||'discover';syncRoute()}
     else if(action==='reveal-spoiler'){const box=target.closest('.spoiler-note'),p=box?.querySelector('.spoiler-text');if(p){p.hidden=!p.hidden;target.textContent=p.hidden?'点此查看':'收起剧透'}}
     else if(action==='new-item')newItemForm();
     else if(action==='travel-new-item')newItemForm('place');
-    else if(action==='import-remote')importRemote(target.dataset.index,target.dataset.source||'discover');
+    else if(action==='import-remote')importRemote(target.dataset.index,target.dataset.source||'discover',target);
     else if(action==='close')closeModal();
     else if(action==='modal-background'&&target===clickEvent.target)closeModal();
     else if(action==='travel-preset'){view.travelSearch=target.dataset.query;view.travelLocalPage=1;view.travelRemotePage=1;render();startTravelSearch();$('travel-search-input')?.focus()}
@@ -682,8 +705,6 @@ import {coverImageUrl} from './coverUrl.js';
     else if(t.id==='rank-mode'){view.rankMode=t.value;view.rankPage=1;$('ranking-list').innerHTML=rankingHTML()}
     else if(t.id==='personal-status'){view.personalStatus=t.value;$('personal-list').innerHTML=personalList()}
     else if(t.id==='personal-sort'){view.personalSort=t.value;$('personal-list').innerHTML=personalList()}
-    else if(t.id==='record-category'){const category=t.value;$('record-item').innerHTML=data.items.filter(x=>x.category===category).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');$('record-status').innerHTML=selectionOptions(STATUS[category],'done');const first=itemById($('record-item').value),rec=first?own(first.id):null;$('record-status').value=rec?.status||'done';$('record-rating').value=rec&&isRated(rec)?rec.rating:'';$('record-note').value=rec?.note||'';$('record-visibility').value=rec?.visibility||'circle';const spoiler=e.target.form?.querySelector('input[name="spoiler"]');if(spoiler)spoiler.checked=!!rec?.spoiler}
-    else if(t.id==='record-item'){const item=itemById(t.value);if(!item)return;const rec=own(item.id);$('record-status').value=rec?.status||'done';$('record-rating').value=rec&&isRated(rec)?rec.rating:'';$('record-note').value=rec?.note||'';$('record-visibility').value=rec?.visibility||'circle';const spoiler=e.target.form?.querySelector('input[name="spoiler"]');if(spoiler)spoiler.checked=!!rec?.spoiler}
     else if(t.id==='import-file')importData(t);
   });
   document.addEventListener('submit', async e=>{

@@ -904,6 +904,36 @@ body.travel-detail-mode #page .section-title{font-family:"Noto Serif SC","Songti
 .preview-banner{position:relative;z-index:1;margin:20px auto;background:#15171deb;color:#fff7db;max-width:min(420px,90vw);padding:8px 12px;border-left:6px solid #f6da46;box-shadow:4px 5px 0 #e5ca5b55;display:flex;flex-direction:column;gap:3px;font:700 10px system-ui}
 .preview-banner strong{letter-spacing:.12em;color:#f9de46;font-size:11px}
 .preview-banner span{font-size:10px;color:#e9e4dc;font-weight:500}
+</style><style>/* V0.5.4 final mobile fixes */
+/* V0.5.4 — responsive hotfix loaded last so previous desktop styles cannot override it */
+@media (max-width: 760px) {
+  .feed-list { display:grid !important;grid-template-columns:minmax(0,1fr) !important;gap:16px !important;max-width:100%;padding-inline:0!important; }
+  .feed-list > .feed-card, .feed-list > .feed-card-feature { grid-column:1/-1 !important; width:100%; min-width:0; box-sizing:border-box; padding:17px!important; transform:none!important; }
+  .feed-list > .feed-card .content-row {display:grid;grid-template-columns: minmax(0,78px) minmax(0,1fr);gap:12px;align-items:start;min-width:0;}
+  .feed-list > .feed-card .content-row > .cover {width:78px!important;min-width:0!important;height:auto;aspect-ratio:3 / 4;}
+  .feed-list > .feed-card .feed-detail {min-width:0;max-width:100%;overflow-wrap:anywhere;}
+  .feed-list .record-title {white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%;font-size:17px!important;line-height:1.3;}
+  .feed-list .feed-ratingline {gap:8px;flex-wrap:wrap;max-width:100%;margin:13px 0 8px;}
+  .feed-list .feed-ratingline .rating {min-width:0!important;padding:10px 10px 8px!important;transform:none!important;max-width:100%;}
+  .feed-list .feed-ratingline .rating strong {font-size:clamp(28px,9vw,38px)!important;}
+  .feed-list .rating-label {align-self:center;font-size:9px;}
+  .feed-list .feed-user {min-width:0;gap:7px;}
+  .feed-list .feed-user .name {white-space:normal;overflow-wrap:anywhere;}
+  .feed-list .feed-user .tag {flex:0 0 auto;}
+  .feed-list .note {font-size:12px;max-width:100%;}
+  .feed-list .subbar {font-size:10px;gap:6px;flex-wrap:wrap;}
+  .feed-pager-wrap .page-controls {max-width:100%;flex-wrap:wrap;justify-content:center;}
+}
+@media (max-width:359px) {
+  .feed-list > .feed-card {padding:12px!important;}
+  .feed-list > .feed-card .content-row {grid-template-columns:64px minmax(0,1fr);gap:9px;}
+  .feed-list > .feed-card .content-row > .cover{width:64px!important;}
+  .feed-list .rating-label{display:none;}
+  .feed-list .feed-ratingline .rating strong{font-size:29px!important;}
+}
+.source-attribution{display:inline-flex;margin:6px 0 4px;align-self:start;font-size:11px;font-weight:800;text-decoration:underline;text-underline-offset:3px;color:#b73d36}
+.cover-caption{position:absolute;bottom:6px;left:5px;right:5px;z-index:1;pointer-events:none;color:#fffbdf;font:900 8px ui-monospace,monospace;text-align:center;letter-spacing:.08em;text-shadow:0 1px 3px #0009}
+
 </style></head>
 <body>
   <div class="ambient ambient-a" aria-hidden="true"></div><div class="ambient ambient-b" aria-hidden="true"></div><div class="page-grain" aria-hidden="true"></div><div class="reading-progress" id="reading-progress" aria-hidden="true"></div>
@@ -936,11 +966,23 @@ body.travel-detail-mode #page .section-title{font-family:"Noto Serif SC","Songti
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="import-file" accept="application/json" hidden />
-  <div class="preview-banner" role="note"><strong>V0.5.3-r1 · REAL UI PREVIEW</strong><span>使用真实页面模板与样式 · 作品和评分均为模拟数据 · 不连接 Supabase</span></div><script>document.addEventListener("submit",e=>{e.preventDefault();e.stopImmediatePropagation();alert("演示模式：不会写入任何数据");},true);</script><script>const ready=true;
+  <div class="preview-banner" role="note"><strong>V0.5.4 · REAL UI PREVIEW</strong><span>使用真实页面模板与样式 · 作品和评分均为模拟数据 · 不连接 Supabase</span></div><script>document.addEventListener("submit",e=>{e.preventDefault();e.stopImmediatePropagation();alert("演示模式：不会写入任何数据");},true);</script><script>const ready=true;
 const db={auth:{getSession:async()=>({data:{session:{access_token:'preview-token'}}})}};
 const paginate=(items,page=1,pageSize=10)=>{const total=items.length,totalPages=Math.max(1,Math.ceil(total/pageSize)),p=Math.max(1,Math.min(totalPages,Number(page)||1));return {items:items.slice((p-1)*pageSize,p*pageSize),page:p,pageSize,total,totalPages,hasPrevious:p>1,hasNext:p<totalPages}};
 const findExistingCatalogItem=()=>null;
 const coverImageUrl=(value)=>String(value||'');
+
+
+
+
+
+
+
+
+
+
+/* 同频 V0.5.1: V0.4.9 visuals restored; cover preservation + discovery paging + railway travel channel; Supabase/Auth/RLS unchanged. */
+
 
 
 
@@ -1028,10 +1070,11 @@ const coverImageUrl=(value)=>String(value||'');
   function httpsUrl(value){try{const u=new URL(String(value||''));return u.protocol==='https:'?u.href:''}catch(_){return ''}}
   const bangumiBadge=(item,small=false)=>item.provider==='bangumi'&&Number(item.bangumiScore)>0
     ? `<span class="bangumi-badge ${small?'bangumi-badge-small':''}" title="Bangumi 社区评分，不计入圈子榜单">BGM <b>${Number(item.bangumiScore).toFixed(1)}</b></span>` : '';
+  const externalBadge=item=>item.externalScoreSource && Number(item.externalScore)>0?`<span class="kind-chip" title="外部社区评分，不参与圈内平均分">${esc(item.externalScoreSource)} <b>${Number(item.externalScore).toFixed(1)} / ${item.externalScoreMax||10}</b></span>`:'';
   const itemKinds=item=>[item.platform, ...(Array.isArray(item.tags)?item.tags:[])].filter(Boolean).slice(0,5);
   const cover=(item,cl='')=>{
     const src = coverImageUrl(coverCache[item.id] || item.coverUrl);
-    return `<div class="cover ${esc(item.category)} ${cl} cover-${esc(item.id)}" data-cover-id="${esc(item.id)}" role="img" aria-label="${esc(item.name)}封面或占位插图"><span class="cover-glow"></span><span class="cover-symbol">${esc(item.emoji||CAT_EMOJI[item.category])}</span><span class="cover-grain"></span>${src?`<img class="cover-backdrop" src="${esc(src)}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()"/><img class="cover-photo" src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div>`
+    return `<div class="cover ${esc(item.category)} ${cl} cover-${esc(item.id)}" data-cover-id="${esc(item.id)}" role="img" aria-label="${esc(item.name)}封面或占位插图"><span class="cover-glow"></span><span class="cover-symbol">${esc(item.emoji||CAT_EMOJI[item.category])}</span><span class="cover-grain"></span><span class="cover-caption">RES·COVER</span>${src?`<img class="cover-backdrop" src="${esc(src)}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()"/><img class="cover-photo" src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div>`
   };
   // 旅行地点从百科读取开放缩略图；只用于浏览器展示，不把图片二进制打包进项目。
   async function enrichPlaceImages(){
@@ -1109,7 +1152,7 @@ const coverImageUrl=(value)=>String(value||'');
   }
   function discoverMatches(){const search=view.search.trim().toLocaleLowerCase();return data.items.filter(x=>x.category!=='place'&&(view.category==='all'||x.category===view.category)&&(!search||`${x.name} ${x.subtitle||''}`.toLocaleLowerCase().includes(search)));}
   function discoverList(){const matches=discoverMatches(),info=paginate(matches,view.localPage,LOCAL_PAGE_SIZE);view.localPage=info.page;
-    return info.items.length?info.items.map(x=>{const s=summarize(x);return `<div class="item-card">${cover(x,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${esc(x.id)}"><strong>${esc(x.name)}</strong></button><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${s.count?s.average.toFixed(1)+'圈内分 · '+s.count+'人':'暂无圈内评分'}</small><div class="remote-meta">${bangumiBadge(x,true)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}</div></div><button class="small-btn" data-action="record" data-id="${esc(x.id)}">${own(x.id)?'编辑记录':'＋ 记录'}</button></div>`}).join(''):'<div class="empty-state"><strong>片库暂无匹配条目</strong><p>试试下方在线搜索；如果没有结果，也可以手动创建。</p></div>';
+    return info.items.length?info.items.map(x=>{const s=summarize(x);return `<div class="item-card">${cover(x,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${esc(x.id)}"><strong>${esc(x.name)}</strong></button><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${s.count?s.average.toFixed(1)+'圈内分 · '+s.count+'人':'暂无圈内评分'}</small><div class="remote-meta">${bangumiBadge(x,true)}${externalBadge(x)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}</div></div><button class="small-btn" data-action="record" data-id="${esc(x.id)}">${own(x.id)?'编辑记录':'＋ 记录'}</button></div>`}).join(''):'<div class="empty-state"><strong>片库暂无匹配条目</strong><p>试试下方在线搜索；如果没有结果，也可以手动创建。</p></div>';
   }
   function discoverPager(){const info=paginate(discoverMatches(),view.localPage,LOCAL_PAGE_SIZE);return `<span class="pagination-summary">已收录 ${info.total} 部作品 · 每页 ${LOCAL_PAGE_SIZE} 部</span>${renderPager('local',info.page,info.totalPages)}`;}
   function localMatch(remoteItem){
@@ -1125,7 +1168,7 @@ const coverImageUrl=(value)=>String(value||'');
     const isTravel=category==='place';
     const cards=source.items.map((x,index)=>{
       const local=localMatch(x);
-      return `<div class="item-card remote-card ${isTravel?'station-remote-card':''}"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':'Bangumi')}</small><div class="remote-meta">${bangumiBadge(x,true)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}${(x.tags||[]).slice(0,2).map(t=>`<span class="kind-chip">${esc(t)}</span>`).join('')}</div></div><button class="small-btn" data-action="import-remote" data-source="${isTravel?'travel':'discover'}" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
+      return `<div class="item-card remote-card ${isTravel?'station-remote-card':''}"><div class="remote-cover"><span>${CAT_EMOJI[x.category]}</span>${coverImageUrl(x.coverUrl)?`<img src="${esc(coverImageUrl(x.coverUrl))}" alt="" loading="lazy" decoding="async" onerror="this.remove()"/>`:''}</div><div class="item-text"><strong>${esc(x.name)}</strong><small>${esc(x.subtitle||CAT_NAME[x.category])} · ${esc(x.provider==='amap'?'高德地图':x.provider==='igdb'?'IGDB':x.provider==='jikan'?'MAL / Jikan':x.provider==='rawg'?'RAWG':'Bangumi')}</small>${httpsUrl(x.sourceUrl)?`<a class="source-attribution" href="${esc(httpsUrl(x.sourceUrl))}" target="_blank" rel="noopener noreferrer">访问 ${esc(x.provider==='rawg'?'RAWG':x.provider==='jikan'?'MyAnimeList':'资料来源')} ↗</a>`:''}<div class="remote-meta">${bangumiBadge(x,true)}${externalBadge(x)}${x.platform?`<span class="kind-chip">${esc(x.platform)}</span>`:''}${(x.tags||[]).slice(0,2).map(t=>`<span class="kind-chip">${esc(t)}</span>`).join('')}</div></div><button class="small-btn" data-action="import-remote" data-source="${isTravel?'travel':'discover'}" data-index="${index}">${local?'已有条目 · 记录':'加入并评分'}</button></div>`;
     }).join('');
     const tips=source.notices.length?`<p class="search-notices">${source.notices.map(esc).join('；')}</p>`:'';
     const current=Number(source.page)||1;
@@ -1734,7 +1777,6 @@ const coverImageUrl=(value)=>String(value||'');
   }
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
   window.addEventListener('hashchange',syncRoute);
-
   function initializeDemo() {
     ME='demo-me';
     USERS=[{"id": "demo-me", "name": "小林"}, {"id": "demo-2", "name": "橙子"}, {"id": "demo-3", "name": "小晞"}, {"id": "demo-4", "name": "阿绪"}, {"id": "demo-5", "name": "柚子"}];
