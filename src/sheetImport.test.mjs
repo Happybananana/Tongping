@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parseCsv,parseImportRows,guessMapping,validateScore,normalizeCategory,normalizedName} from './sheetImport.js';
+test('CSV quotes and Unicode rows',()=>{assert.deepEqual(parseCsv('\uFEFF作品名,备注\r\n"命运,石之门","太好看了\n值得重看"\r\n'),[['作品名','备注'],['命运,石之门','太好看了\n值得重看']]);});
+test('mapping title/category/status and preview',()=>{const data=parseImportRows([['作品名','类别','我的评分','状态','备注'],['葬送的芙莉莲','番剧','9.5','看过','不错'],['艾尔登法环','游戏','8','游玩中','']]);assert.equal(data.rows.length,2);assert.equal(data.rows[0].category,'anime');assert.equal(data.rows[1].category,'game');assert.equal(data.rows[1].status,'doing');assert.equal(data.rows[0].rating,9.5)});
+test('reject invalid fractional rating',()=>{assert.throws(()=>validateScore(8.3));assert.equal(validateScore(''),null);assert.equal(validateScore(0.5),0.5)});
+test('invalid rows flagged without aborting all',()=>{const x=parseImportRows([['Title','Rating'],['A',8.3],['B',9]]);assert.ok(x.rows[0].error);assert.equal(x.rows[1].rating,9)});
+test('row cap and title required',()=>{assert.throws(()=>parseImportRows([['评价'],['abc']]));assert.throws(()=>parseImportRows([['作品名'],['a'],['b']],{maxRows:1}))});
+test('normalize name punctuation and category',()=>{assert.equal(normalizedName('命运：石之门'),normalizedName('命运 石之门'));assert.equal(normalizeCategory('PC 游戏','anime'),'game')});

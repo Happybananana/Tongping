@@ -1,17 +1,19 @@
 {
   "name": "tongpin-resonance",
   "private": true,
-  "version": "0.5.6",
+  "version": "0.5.7",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "dev:search": "node --env-file=.env.search server/index.mjs",
-    "test:search": "node --test server/search.test.mjs api/search.test.mjs src/catalogMatch.test.mjs server/cover.test.mjs api/cover.test.mjs src/coverUrl.test.mjs server/bangumi-transport.test.mjs server/bangumi-metadata.test.mjs api/subject.test.mjs src/pagination.test.mjs server/media-cover.test.mjs"
+    "test:search": "node --test server/search.test.mjs api/search.test.mjs src/catalogMatch.test.mjs server/cover.test.mjs api/cover.test.mjs src/coverUrl.test.mjs server/bangumi-transport.test.mjs server/bangumi-metadata.test.mjs api/subject.test.mjs src/pagination.test.mjs server/media-cover.test.mjs",
+    "test:features": "node --test src/sheetImport.test.mjs src/personalStats.test.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.0"
+    "@supabase/supabase-js": "^2.57.0",
+    "read-excel-file": "^9.3.12"
   },
   "devDependencies": {
     "vite": "^7.1.0"

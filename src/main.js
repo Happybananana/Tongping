@@ -6,6 +6,9 @@ import "./v050-departure.css";
 import "./v0531-podium-fix.css";
 import "./v054-mobile-fix.css";
 import "./v056-flow.css";
+import "./v057-archive.css";
+import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
+import {getPersonalStats} from "./personalStats.js";
 import {paginate} from './pagination.js';
 import {db, ready} from './cloud.js';
 import {findExistingCatalogItem} from './catalogMatch.js';
@@ -27,7 +30,7 @@ import {coverImageUrl} from './coverUrl.js';
   let authMode = 'login';
   const NAV = [
     {id:'feed',name:'店内放映',icon:'home'}, {id:'discover',name:'找片',icon:'compass'},
-    {id:'circle',name:'好友频道',icon:'users'},
+    {id:'circle',name:'好友频道',icon:'users'}, {id:'posts',name:'圈内讨论',icon:'message'},
     {id:'travel',name:'沿途车站',icon:'train'}, {id:'me',name:'我的录像柜',icon:'user'}
   ];
 
@@ -43,6 +46,7 @@ import {coverImageUrl} from './coverUrl.js';
     star:'<path d="m12 2.5 3 6.1 6.8 1-4.9 4.8 1.2 6.8-6.1-3.2-6.1 3.2 1.2-6.8L2.2 9.6l6.8-1z"/>',
     export:'<path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/>',
     bookmark:'<path d="M5 3h14v18l-7-5-7 5z"/>',
+    message:'<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H6l-4 2v-7.5a8.5 8.5 0 1 1 19-3z"/>',
     train:'<rect x="5" y="3" width="14" height="15" rx="3"/><path d="M5 11h14M8 21l3-3m5 3-3-3M8 15h.01M16 15h.01"/>'
   };
   const icon = (name,size=18) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]||ICON_PATHS.spark}</svg>`;
@@ -58,6 +62,10 @@ import {coverImageUrl} from './coverUrl.js';
     place:[['want','想去'],['done','去过']]
   };
   let data = {items:[], records:[]};
+  let threadData={posts:[],comments:[],loading:false,error:'',circleId:'',loadedAt:0};
+  let threadSerial=0, bulkDraft=null;
+  let theme='club';try{theme=localStorage.getItem('tongpin:ui-theme')==='archive'?'archive':'club'}catch(_){}
+  document.body.classList.toggle('theme-archive',theme==='archive');
   let remote = {items:[],notices:[],state:'idle',query:'',category:''};
   const detailLookups = new Set(); // per-session on-demand hydration for legacy Bangumi entries
   const detailMetadata = new Map(); // retain hydrated fields across normal background refreshes
@@ -66,7 +74,7 @@ import {coverImageUrl} from './coverUrl.js';
   let travelSearchTimer = null;
   let travelSearchSerial = 0;
   let travelRemote = {items:[],notices:[],state:'idle',query:'',category:'place',page:1,hasMore:false};
-  let view = {page:'feed',detailId:'',returnPage:'discover',category:'all',rankCategory:'all',rankMode:'average',rankPage:1,feedPage:1,minThree:false,search:'',personalCategory:'all',personalStatus:'all',personalSort:'recent',personalDisplay:'shelf',localPage:1,remotePage:1,travelSearch:'',travelLocalPage:1,travelRemotePage:1,travelMinThree:false};
+  let view = {page:'feed',detailId:'',postId:'',postCategory:'all',postPage:1,returnPage:'discover',category:'all',rankCategory:'all',rankMode:'average',rankPage:1,feedPage:1,minThree:false,search:'',personalCategory:'all',personalStatus:'all',personalSort:'recent',personalDisplay:'shelf',localPage:1,remotePage:1,travelSearch:'',travelLocalPage:1,travelRemotePage:1,travelMinThree:false};
   try { if(localStorage.getItem('tongpin:archive-display')==='list')view.personalDisplay='list'; } catch(_) {}
   const $ = id => document.getElementById(id);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -123,8 +131,8 @@ import {coverImageUrl} from './coverUrl.js';
   function cats(active,action) {return `<div class="filters">${CATEGORIES.map(c=>`<button class="filter-btn ${active===c.id?'selected':''}" data-action="${action}" data-category="${c.id}">${c.name}</button>`).join('')}</div>`}
   function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('visible'),2700)}
   function nav(){
-    const build=(mobile=false)=>NAV.map(n=>mobile
-      ? `<button class="${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''}" data-action="navigate" data-page="${n.id}"><span class="bottom-icon">${icon(n.icon,21)}</span><span>${n.name}</span></button>`
+    const build=(mobile=false)=>(mobile?NAV.filter(n=>n.id!=='posts'):NAV).map(n=>mobile
+      ? `<button class="${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id)||(view.page==='posts'&&n.id==='circle')||(view.page==='post'&&n.id==='circle'))?'active':''}" data-action="navigate" data-page="${n.id}"><span class="bottom-icon">${icon(n.icon,21)}</span><span>${n.name}</span></button>`
       : `<button class="nav-button ${view.page===n.id?'active':''}" data-action="navigate" data-page="${n.id}"><span class="nav-icon">${icon(n.icon,19)}</span><span>${n.name}</span>${(n.id===view.page||(view.page==='detail'&&n.id===view.returnPage))?'<span class="nav-active-dot"></span>':''}</button>`).join('');
     $('side-nav').innerHTML=build();
     $('bottom-nav').innerHTML=build(true);
@@ -173,7 +181,7 @@ import {coverImageUrl} from './coverUrl.js';
     const end=Math.min(totalPages,start+4);
     const buttons=[];
     for(let i=start;i<=end;i++)buttons.push(`<button type="button" class="pager-page ${i===page?'active':''}" data-action="page-change" data-scope="${scope}" data-page="${i}" aria-label="第 ${i} 页" aria-current="${i===page?'page':'false'}">${i}</button>`);
-    const aria=scope==='feed'?'朋友正在播放':scope==='local'?'共享作品':scope==='travel-local'?'旅行地点':scope==='rank'?'好友频道排行榜':'线上搜索';return `<nav class="page-controls" aria-label="${aria}分页"><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page-1}" ${page===1?'disabled':''}>← 上一页</button><span class="pager-number-group">${buttons.join('')}</span><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page+1}" ${page>=totalPages?'disabled':''}>下一页 →</button><span class="pager-page-label">${page} / ${totalPages}</span></nav>`;
+    const aria=scope==='feed'?'朋友正在播放':scope==='local'?'共享作品':scope==='travel-local'?'旅行地点':scope==='rank'?'好友频道排行榜':scope==='posts'?'圈内帖子':'线上搜索';return `<nav class="page-controls" aria-label="${aria}分页"><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page-1}" ${page===1?'disabled':''}>← 上一页</button><span class="pager-number-group">${buttons.join('')}</span><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page+1}" ${page>=totalPages?'disabled':''}>下一页 →</button><span class="pager-page-label">${page} / ${totalPages}</span></nav>`;
   }
   function discoverMatches(){const search=view.search.trim().toLocaleLowerCase();return data.items.filter(x=>x.category!=='place'&&(view.category==='all'||x.category===view.category)&&(!search||`${x.name} ${x.subtitle||''}`.toLocaleLowerCase().includes(search)));}
   function discoverList(){const matches=discoverMatches(),info=paginate(matches,view.localPage,LOCAL_PAGE_SIZE);view.localPage=info.page;
@@ -334,6 +342,7 @@ import {coverImageUrl} from './coverUrl.js';
     ${list.length?`<div class="rank-rest"><div class="rank-rest-head"><div class="rank-rest-label">THE COMPLETE CHART / 完整榜单 <span>${rest.length?`第 4—${list.length} 名 · 分页浏览`:'当前只有前三名作品'}</span></div>${rest.length?`<span class="rank-rest-count">PAGE ${restPage.page}/${restPage.totalPages}</span>`:''}</div>${rest.length?restPage.items.map((x,i)=>{const rankNumber=(restPage.page-1)*restPage.pageSize+i+4;return `<button type="button" class="rank-track" data-action="detail" data-id="${esc(x.item.id)}"><span class="rank-track-num">${String(rankNumber).padStart(2,'0')}</span>${cover(x.item,'rank-track-cover')}<span class="rank-track-title"><strong>${esc(x.item.name)}</strong><small>${x.count} 人打分 · ${CAT_NAME[x.item.category]}</small></span><span class="rank-track-score">${val(x)}</span><span class="rank-track-arrow">↗</span></button>`}).join('')+renderPager('rank',restPage.page,restPage.totalPages):'<div class="rank-rest-empty">当前榜单已全部展示完毕。</div>'}</div>`:''}</div>`;
   }
   function circle(){const diff=data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.spread!==null).sort((a,b)=>b.spread-a.spread)[0];return `<section class="channel-hero"><div class="channel-hero-copy"><span>ON AIR · PRIVATE CHANNEL / 03</span><h2>我们的<br><em>HOT 100*</em></h2><p>*不一定凑满一百部，但每个分数都来自真正的朋友。</p></div><div class="channel-disc" aria-hidden="true"><div class="disc-label"><span>RESONANCE</span><b>33⅓</b><small>PLAY IT AGAIN</small></div></div></section>
+    <section class="community-door"><div><span>DISCUSSION / AFTER THE CREDITS</span><h2>看完还想聊？</h2><p>给刚追完的番、通关的游戏开个话题，只在我们的圈子里交流。</p></div><button class="primary-btn" data-action="navigate" data-page="posts">进入圈内讨论 ↗</button></section>
     <section class="ranking-hub"><div class="rank-hub-heading"><div><span class="eyebrow">CHANNEL CHARTS / THE TASTEMAKERS</span><h2>本期上榜 <b>↗</b></h2><p>前三名登上播放主舞台，其余作品进入可分页的完整曲目表。</p></div><div class="rank-mini-stats"><b>${data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.count).length}</b><span>入榜作品</span></div></div>${cats(view.rankCategory,'rank-category')}<div id="ranking-list">${rankingHTML()}</div></section>
     ${diff?`<section class="channel-debate"><div><span class="eyebrow">THE ARGUMENT / 本周争议</span><h3>这部，大家意见很大。</h3><p>评分最高和最低相差 <strong>${diff.spread.toFixed(1)}</strong> 分。</p></div><button data-action="detail" data-id="${esc(diff.item.id)}">${cover(diff.item,'debate-cover')}<span>${esc(diff.item.name)}<small>${diff.count} 人参与评分 ↗</small></span></button></section>`:''}
     <section class="crew-room"><div class="crew-heading"><span>BEHIND THE COUNTER</span><h2>店内伙伴 / ${USERS.length}</h2></div><div class="crew-grid">${USERS.map((u,i)=>`<div class="crew-card"><div class="crew-card-code">STAFF / ${String(i+1).padStart(2,'0')}</div>${avatar(u.id)}<strong>${esc(u.name)}</strong><span>${data.records.filter(r=>r.userId===u.id&&isRated(r)).length} 条评分 · ${data.records.filter(r=>r.userId===u.id).length} 条记录</span></div>`).join('')}</div>${activeCircle?.owner_id===ME?`<div class="invite-box"><strong>邀请更多同频伙伴</strong><p>把邀请码私下发送给朋友。</p><div class="invite-code">${esc(inviteCode||'加载中…')}</div><button class="btn-ghost" data-action="copy-invite">复制邀请码</button></div>`:''}</section>`;}
@@ -359,7 +368,10 @@ import {coverImageUrl} from './coverUrl.js';
   }
   function me(){const mine=ownRecords(),rated=mine.filter(isRated);return `<div class="locker-utility"><span>MY VIDEO LOCKER / 04 · 私人录像柜</span><button class="primary-btn" data-action="navigate" data-page="discover">⌕ 去找片</button></div>
     <div class="stats"><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='game').length}</strong><span>🎮 游戏</span></div><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='anime').length}</strong><span>📺 动画</span></div><button type="button" class="stat stat-travel-gate" data-action="navigate" data-page="travel"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='place').length}</strong><span>🚆 地点 · 去沿途车站 ↗</span></button></div>
+    ${statsPanel()}
+    <div class="import-entry panel"><div><span class="eyebrow">IMPORT / FROM YOUR ARCHIVE</span><h3>把过去的收藏，一次带进同频。</h3><p>支持 CSV / XLSX，先匹配和预览，再选择导入。默认只对你自己可见，不覆盖已有记录。</p></div><button class="primary-btn" data-action="sheet-import">⇧ 批量导入表格</button></div>
     <section class="locker-controls"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div><div class="display-toggle" role="group" aria-label="收藏展示方式"><button data-action="personal-display" data-display="shelf" class="${view.personalDisplay==='shelf'?'selected':''}" aria-pressed="${view.personalDisplay==='shelf'}">▣ MIXTAPE 磁带馆</button><button data-action="personal-display" data-display="list" class="${view.personalDisplay==='list'?'selected':''}" aria-pressed="${view.personalDisplay==='list'}">☷ 列表</button></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></section>
+    <div class="panel"><div class="theme-settings"><div><h2 class="section-title">页面主题</h2><p>VIDEO CLUB 复古录像店 / COLLECTION 收藏柜简约界面</p></div><button class="btn-ghost" data-action="theme-toggle">${theme==='archive'?'切换到 VIDEO CLUB':'切换到 COLLECTION'} ⇄</button></div></div>
     <div class="panel"><h2 class="section-title">账号与云端档案</h2><p class="help-copy">已登录：${esc(authUser?.email||'')}。个人记录保存在 Supabase；导入旧版记录时默认设为“仅自己可见”。</p>
     <form id="nickname-form" class="account-form"><label>圈内昵称</label><input name="nickname" class="form-control" maxlength="40" required value="${esc(userById(ME).name)}"/><button class="btn-ghost" type="submit">更新昵称</button></form>
     <form id="password-form" class="account-form"><label for="new-password">设置 / 修改登录密码</label><input id="new-password" name="newPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="新密码（8 位以上）"/><input name="confirmPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="确认新密码"/><button class="btn-ghost" type="submit">保存密码</button></form><p class="help-copy">旧版 Magic Link 用户：如当前仍已登录，可在此设置密码以保留原账号 ID、圈子和评分。若开启了 Supabase 的安全密码变更验证，旧会话可能还需重新认证。</p>
@@ -371,6 +383,87 @@ import {coverImageUrl} from './coverUrl.js';
     if(/User already registered/i.test(raw))return '这个邮箱已注册，请返回登录；如果还没设过密码，请使用原登录会话设置密码';
     if(/relation .* does not exist|schema cache|Could not find the function|PGRST202|PGRST205/i.test(raw))return '数据库还未正确初始化，请先运行 supabase/schema.sql';
     return raw.slice(0,170);
+  }
+
+  // Private-circle discussion: fetched on demand so initial startup remains responsive.
+  function postCards(list){
+    if(threadData.loading&&!threadData.posts.length)return '<div class="discussion-empty">正在读取圈内帖子…</div>';
+    if(threadData.error)return `<div class="discussion-empty">${esc(threadData.error)}<p>请先执行 supabase/migration_v057.sql。</p></div>`;
+    if(!list.length)return '<div class="discussion-empty">这里还没有帖子。分享你的第一份通关感想或追番心得吧。</div>';
+    return `<div class="post-grid">${list.map(p=>{const item=itemById(p.itemId);if(!item)return '';const comments=threadData.comments.filter(c=>c.postId===p.id).length;
+      return `<button class="post-tile" type="button" data-action="open-post" data-id="${esc(p.id)}"><span class="post-tile-cover">${cover(item,'post-cover')}</span><span class="post-tile-copy"><span class="post-kicker">${esc(CAT_NAME[item.category])} · ${esc(item.name)}</span><strong>${esc(p.title)}</strong><small>${esc(userById(p.userId).name)} · ${notifyAge(p.createdAt)} · ${comments} 条回复</small><span class="post-teaser">${p.spoiler?'◈ 含剧透内容，点击后查看':esc(p.body.slice(0,88))}</span></span><span class="post-arrow">↗</span></button>`}).join('')}</div>`;
+  }
+  function posts(){
+    const list=threadData.posts.filter(p=>view.postCategory==='all'||itemById(p.itemId)?.category===view.postCategory);
+    const pg=paginate(list,view.postPage,10);view.postPage=pg.page;
+    return `<section class="discussion-hero"><span>AFTER THE CREDITS · PRIVATE DISCUSSION</span><h1>看完之后，<br><em>还有话想说。</em></h1><p>聊喜欢的动画、争议的剧情、刚通关的游戏。这里是只属于圈内成员的放映后谈话室。</p><button class="primary-btn" data-action="new-post">＋ 发起一个话题 ↗</button></section>
+      <div class="discussion-head"><div><h2>频道讨论 <small>${threadData.posts.length} POSTS</small></h2><p>帖子仅同圈成员可见，内容关联具体的动画或游戏。</p></div><div class="filters"><button class="filter-btn ${view.postCategory==='all'?'selected':''}" data-action="post-category" data-category="all">全部</button><button class="filter-btn ${view.postCategory==='anime'?'selected':''}" data-action="post-category" data-category="anime">动画</button><button class="filter-btn ${view.postCategory==='game'?'selected':''}" data-action="post-category" data-category="game">游戏</button></div></div>
+      ${postCards(pg.items)}${renderPager('posts',pg.page,pg.totalPages)}`;
+  }
+  function postPage(){
+    const p=threadData.posts.find(x=>x.id===view.postId);if(!p)return `<div class="panel discussion-empty">${threadData.loading?'正在载入帖子…':threadData.error?esc(threadData.error):'未找到帖子或你没有权限查看。'}<p><button class="btn-ghost" data-action="navigate" data-page="posts">返回讨论区</button></p></div>`;
+    const item=itemById(p.itemId),comments=threadData.comments.filter(c=>c.postId===p.id);
+    return `<div class="post-detail"><button class="back-link" data-action="navigate" data-page="posts">← 返回圈内讨论</button><article class="panel post-article"><div class="post-article-top"><span class="eyebrow">AFTER THE CREDITS / ${esc(CAT_NAME[item?.category]||'作品')}</span><span class="post-date">${notifyAge(p.createdAt)}</span></div><h1>${esc(p.title)}</h1><button class="post-subject" data-action="detail" data-id="${esc(p.itemId)}">${item?cover(item,'post-subject-cover'):''}<span><small>本帖讨论作品</small><strong>${esc(item?.name||'作品已删除')}</strong></span><b>查看作品 ↗</b></button><div class="post-article-user">${avatar(p.userId)}<strong>${esc(userById(p.userId).name)}</strong><span>发布于圈内</span>${p.userId===ME?`<button data-action="delete-post" data-id="${esc(p.id)}" class="btn-ghost danger">删除帖子</button>`:''}</div>${p.spoiler?`<div class="spoiler-note"><span>◈ 本帖包含剧透</span><button class="btn-ghost" data-action="reveal-spoiler" type="button">展开正文</button><p class="spoiler-text post-body" hidden>${esc(p.body)}</p></div>`:`<div class="post-body">${esc(p.body)}</div>`}</article><section class="panel post-replies"><div class="panel-head"><h2>朋友的回复</h2><span>${comments.length} REPLIES</span></div>${comments.length?comments.map(c=>`<div class="post-comment">${avatar(c.userId)}<div><strong>${esc(userById(c.userId).name)}</strong><small>${notifyAge(c.createdAt)}</small><p>${esc(c.body)}</p></div>${c.userId===ME?`<button class="btn-ghost danger" data-action="delete-comment" data-id="${esc(c.id)}">删除</button>`:''}</div>`).join(''):'<p class="discussion-empty">还没有回复，来聊聊你的看法。</p>'}<form id="comment-form" class="comment-form"><input type="hidden" name="postId" value="${esc(p.id)}"/><label for="comment-body">回复这个话题</label><textarea name="body" id="comment-body" required maxlength="1000" rows="3" placeholder="说说你的想法…"></textarea><button type="submit" class="primary-btn">发布回复 ↗</button></form></section></div>`;
+  }
+  async function loadPosts(force=false){
+    if(!activeCircle||!db||threadData.loading)return;
+    if(!force&&threadData.circleId===activeCircle.id&&Date.now()-threadData.loadedAt<25000)return;
+    const serial=++threadSerial,cid=activeCircle.id;
+    threadData.loading=true;threadData.error='';
+    const [postsResult,commentsResult]=await Promise.all([
+      db.from('circle_posts').select('id,user_id,item_id,circle_id,title,body,spoiler,created_at').eq('circle_id',cid).order('created_at',{ascending:false}).limit(200),
+      db.from('post_comments').select('id,post_id,user_id,circle_id,body,created_at').eq('circle_id',cid).order('created_at',{ascending:true}).limit(600)
+    ]);
+    if(serial!==threadSerial||activeCircle?.id!==cid)return;
+    if(postsResult.error||commentsResult.error){threadData.error='帖子暂不可用：'+displayError(postsResult.error||commentsResult.error);threadData.posts=[];threadData.comments=[];}
+    else{threadData.posts=postsResult.data.map(p=>({id:p.id,userId:p.user_id,itemId:p.item_id,title:p.title,body:p.body,spoiler:p.spoiler,createdAt:p.created_at}));threadData.comments=commentsResult.data.map(c=>({id:c.id,postId:c.post_id,userId:c.user_id,body:c.body,createdAt:c.created_at}));threadData.loadedAt=Date.now();}
+    threadData.circleId=cid;threadData.loading=false;
+    if(['posts','post','detail'].includes(view.page))render();
+  }
+  function postForm(itemId=''){
+    const options=data.items.filter(i=>['anime','game'].includes(i.category)).sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'));
+    if(!options.length){toast('请先在「找片」中加入游戏或动画作品');return}
+    const selected=options.some(i=>i.id===itemId)?itemId:'';
+    openModal(`${modalTop('发起圈内讨论')}<form id="post-form" class="post-editor"><p class="help-copy">只对同圈成员可见，帖子必须绑定一部动画或游戏。旅途记录仍在「沿途车站」。</p><div class="form-field"><label for="post-item">讨论作品</label><select id="post-item" name="itemId" class="form-control" required><option value="">请选择作品（不会自动选择第一项）</option>${options.map(i=>`<option value="${esc(i.id)}" ${selected===i.id?'selected':''}>${esc(CAT_NAME[i.category])} · ${esc(i.name)}</option>`).join('')}</select></div><div class="form-field"><label for="post-title">帖子标题</label><input id="post-title" class="form-control" name="title" minlength="2" maxlength="80" required placeholder="为什么这部作品值得聊一整晚？"/></div><div class="form-field"><label for="post-body">正文</label><textarea id="post-body" name="body" class="form-control" minlength="1" maxlength="5000" rows="7" required placeholder="分享剧情感想、通关心得、分析或提问…"></textarea></div><label class="spoiler-switch"><input type="checkbox" name="spoiler"/> 含有剧透，读者需主动展开</label><div class="modal-actions"><button type="button" class="btn-ghost" data-action="close">取消</button><button type="submit" class="primary-btn">发布到圈内 ↗</button></div></form>`);
+  }
+  async function deletePost(id){if(!confirm('删除这条帖子及其回复？'))return;try{unwrap(await db.from('circle_posts').delete().eq('id',id).eq('user_id',ME));await loadPosts(true);location.hash='posts';syncRoute();toast('帖子已删除')}catch(e){toast('删除失败：'+displayError(e))}}
+  async function deleteComment(id){if(!confirm('删除自己的回复？'))return;try{unwrap(await db.from('post_comments').delete().eq('id',id).eq('user_id',ME));await loadPosts(true);toast('回复已删除')}catch(e){toast('删除失败：'+displayError(e))}}
+  function statsPanel(){
+    const stats=getPersonalStats(ownRecords(),data.items);const maxYear=Math.max(1,...stats.releaseYears.map(x=>x.count));
+    const statusName={want:'想体验',doing:'进行中',done:'已完成',paused:'暂时搁置'};
+    return `<section class="panel archive-stats"><div class="stats-title"><span class="eyebrow">MY COLLECTION / INSIGHTS</span><h2>我的收藏统计 <span>COLLECTION REPORT</span></h2><p>基于当前已保存的游戏、动画和地点记录，不包含其他成员的私密评分。</p></div><div class="stats-tiles"><div><span>收藏总量</span><strong>${stats.total}</strong><small>条个人记录</small></div><div><span>我的平均分</span><strong>${stats.avg==null?'—':stats.avg.toFixed(1)}</strong><small>${stats.rated} 条有效评分</small></div><div><span>完成率</span><strong>${stats.completionRate}%</strong><small>已完成 / 已看完 / 去过</small></div><div><span>游戏 · 动画</span><strong>${stats.categoryCounts.game} : ${stats.categoryCounts.anime}</strong><small>${stats.categoryCounts.place} 个旅行地点</small></div></div><div class="stats-viz"><div><h3>体验状态</h3><div class="stat-statuses">${Object.entries(stats.statusCounts).map(([k,v])=>`<span>${statusName[k]} <strong>${v}</strong></span>`).join('')}</div><h3>个人评分分布</h3><div class="stat-distribution">${stats.distribution.map(x=>`<div><small>${x.label}</small><span><b style="width:${stats.rated?Math.max(2,x.count/stats.rated*100):0}%"></b></span><em>${x.count}</em></div>`).join('')}</div></div><div><h3>作品发行年份分布 <small>非游玩/观看日期</small></h3>${stats.releaseYears.length?`<div class="stats-years">${stats.releaseYears.map(x=>`<div><span>${x.count}</span><i style="height:${Math.max(6,x.count/maxYear*86)}px"></i><small>${x.year}</small></div>`).join('')}</div>`:'<p class="help-copy">暂无已知发行年份资料。</p>'}</div></div></section>`;
+  }
+  // Safe two-stage import: preview and explicit confirmation, never overwrite existing experiences.
+  function sheetDialog(){bulkDraft=null;openModal(`${modalTop('批量导入已有收藏')}<section class="sheet-dialog"><p>支持 .xlsx 和 .csv，最大 2MB、每次不超过 300 行。请包含「作品名」列；可选「类别」「我的评分」「状态」「备注」「年份」等。旧版 .xls 请另存为 .xlsx。</p><div class="form-field"><label>如果表格没有类别列，按以下类别导入</label><select id="sheet-category" class="form-control"><option value="anime">动画 / 番剧</option><option value="game">游戏</option></select></div><div class="form-field"><label for="sheet-file">选择表格文件</label><input id="sheet-file" type="file" accept=".csv,.xlsx,.xls" class="form-control"/></div><div id="sheet-preview" aria-live="polite"><p class="help-copy">文件只在浏览器本地解析。请在确认页仔细核对作品名称、评分和匹配情况。</p></div></section>`)}
+  function matchedImportItem(row){return data.items.find(x=>x.category===row.category&&((row.providerId&&x.provider==='bangumi'&&x.providerItemId===row.providerId)||normalizedName(x.name)===normalizedName(row.name)||normalizedName(x.subtitle)===normalizedName(row.name)))||null;}
+  async function previewSheetFile(input){const file=input.files?.[0];if(!file)return;try{
+    $('sheet-preview').textContent='正在解析与匹配…';const grid=await readSheetFile(file);
+    bulkDraft=parseImportRows(grid,{fallbackCategory:$('sheet-category')?.value||'anime'});
+    const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name);row.match=matchedImportItem(row);if(seen.has(key)){row.error='表格内重复作品';row.selected=false;}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';row.selected=false;}}
+    const table=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${r.error?'disabled':''} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td>${r.match?'<span class="sheet-match">已匹配共享库</span>':"<span class='sheet-missing'>未匹配</span>"}${r.error?`<small class="sheet-error">${esc(r.error)}</small>`:''}</td></tr>`).join('');
+    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary"></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况</th></tr></thead><tbody>${table}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 允许将未匹配作品作为手动条目添加进当前圈子的共享作品库（请核对同名作品）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
+    updateSheetSummary();
+  }catch(e){bulkDraft=null;$('sheet-preview').textContent='解析失败：'+String(e.message||e)}}
+  function updateSheetSummary(){const el=$('sheet-summary');if(!el||!bulkDraft)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);el.textContent=`识别 ${bulkDraft.rows.length} 条 · 选择 ${selected.length} 条 · 已匹配 ${selected.filter(r=>r.match).length} 条 · 待建档 ${selected.filter(r=>!r.match).length} 条`}
+  async function confirmSheetImport(){if(isBusy||!bulkDraft)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);if(!selected.length){toast('请先选择可导入的作品');return}
+    const createMissing=!!$('sheet-create-missing')?.checked,share=!!$('sheet-share')?.checked;
+    if(selected.some(r=>!r.match)&&!createMissing){toast('存在未匹配作品。请勾选允许建档，或取消这些行');return}
+    if(!confirm(`确认导入 ${selected.length} 条记录吗？${share?'这些记录将对圈内公开。':'记录默认仅自己可见。'} 已有评分不会被覆盖。`))return;
+    isBusy=true;const button=$('sheet-confirm');if(button)button.disabled=true;
+    let inserted=0,skipped=0,created=0;const errors=[];
+    try{
+      for(const row of selected){
+        try{
+          let item=matchedImportItem(row);if(!item){item=await createCatalogItem({category:row.category,name:row.name,subtitle:row.subtitle,year:row.year});created++;}
+          if(own(item.id)){skipped++;continue}
+          const {error}=await db.from('experiences').insert({user_id:ME,item_id:item.id,circle_id:share?activeCircle.id:null,visibility:share?'circle':'private',rating:row.rating,status:row.status,note:row.note,spoiler:false});
+          if(error){if(error.code==='23505'){skipped++;continue}throw error}
+          data.records.push({itemId:item.id,userId:ME,rating:row.rating,status:row.status,note:row.note,visibility:share?'circle':'private',updatedAt:new Date().toISOString()});inserted++;
+        }catch(e){skipped++;errors.push(`${row.name}: ${displayError(e)}`)}
+      }
+      closeModal();bulkDraft=null;await refreshAll(false);toast(`导入完成：新增 ${inserted} 条、跳过/失败 ${skipped} 条、创建作品 ${created} 条`);
+      if(errors.length)alert('部分行未导入：\n'+errors.slice(0,12).join('\n'));
+    }finally{isBusy=false}
   }
 
   function gate(kind){
@@ -438,12 +531,12 @@ import {coverImageUrl} from './coverUrl.js';
       const pmap=new Map(profiles.map(p=>[p.id,p.nickname]));
       USERS=members.map(m=>({id:m.user_id,name:pmap.get(m.user_id)||'圈子伙伴'})).sort((a,b)=>a.id===ME?-1:b.id===ME?1:a.name.localeCompare(b.name,'zh-CN'));
       data={items:items.map(mapCatalog),records:records.map(mapExperience)};
-      if(wasCircle!==activeCircle.id)subscribeToCircle();
+      if(wasCircle!==activeCircle.id){threadData={posts:[],comments:[],loading:false,error:'',circleId:'',loadedAt:0};subscribeToCircle();}
       // 地点图片不再在大陆用户浏览器中请求境外 Wikipedia；没有合法可用封面时使用占位。
       if(showToast)toast('圈子数据已同步');
     }catch(error){
       if(run===refreshSerial){fetchError=displayError(error);console.error('[同频] 数据同步失败',error)}
-    }finally{if(run===refreshSerial){loading=false;render();if(view.page==='detail')void hydrateBangumiDetail(view.detailId)}}
+    }finally{if(run===refreshSerial){loading=false;render();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);if(['posts','post','detail'].includes(view.page)&&activeCircle)void loadPosts()}}
   }
 
   async function saveExperience(r){
@@ -546,7 +639,7 @@ import {coverImageUrl} from './coverUrl.js';
     if(!activeCircle){$('page').innerHTML=gate('circle');return}
     $('rail-foot').innerHTML=`<div class="circle-avatar-stack">${USERS.slice(0,4).map(u=>`<span>${esc(u.name.slice(-1))}</span>`).join('')}</div><strong>${esc(activeCircle.name)}</strong><small>${USERS.length} 位成员 · 私密圈子</small><div class="private-hint">🔒 登录与 RLS 权限保护 · 成员评分已云端同步</div>`;
     nav();$('page').dataset.page=view.page;
-    $('page').innerHTML=({feed,discover,circle,travel,me,detail:detailPage}[view.page]||feed)();side();initVisualMotion();
+    $('page').innerHTML=({feed,discover,circle,posts,post:postPage,travel,me,detail:detailPage}[view.page]||feed)();side();initVisualMotion();
   }
 
   let motionObserver=null;
@@ -644,7 +737,8 @@ import {coverImageUrl} from './coverUrl.js';
         ${shared.length?shared.map(r=>`<div class="friend-review">${avatar(r.userId)}<div class="review-main"><div class="review-title"><strong>${esc(userById(r.userId).name)}</strong><span>${esc(labelStatus(item.category,r.status))}</span><span class="review-date">${notifyAge(r.updatedAt)}</span></div>${reviewNote(r)}${!r.note?'<div class="review-muted">还没有留下短评</div>':''}</div><div class="friend-score">${r.rating.toFixed(1)}<small>/10</small></div></div>`).join(''):'<div class="empty-state"><strong>暂时没有公开评分</strong><p>你可以给这个条目写下圈内第一条评价。</p></div>'}
         ${otherStatus.length?`<div class="watch-status">另有 ${otherStatus.length} 位伙伴已收藏或标记进度，尚未评分。</div>`:''}
         <p class="footer-note">圈子评分只统计当前公开的有效分数。你的私密记录不会进入好友榜单。</p>
-      </section>`;
+      </section>
+      ${item.category!=='place'?`<section class="panel item-posts"><div class="panel-head"><div><span class="eyebrow">AFTER THE CREDITS / 圈内讨论</span><h2 class="section-title">关于这部作品的帖子</h2></div><button class="primary-btn" data-action="new-post" data-id="${esc(item.id)}">＋ 发帖讨论</button></div>${postCards(threadData.posts.filter(p=>p.itemId===item.id).slice(0,5))}</section>`:''}`;
   }
   function detail(id){
     if(!itemById(id))return;
@@ -655,13 +749,22 @@ import {coverImageUrl} from './coverUrl.js';
   function syncRoute(){
     const h=decodeURIComponent(location.hash.replace(/^#/,''));
     if(h.startsWith('item/')){view.detailId=h.slice(5);view.page='detail'}
-    else if(['feed','discover','circle','travel','me'].includes(h)){view.page=h;view.detailId=''}
+    else if(h.startsWith('post/')){view.postId=h.slice(5);view.page='post'}
+    else if(['feed','discover','circle','posts','travel','me'].includes(h)){view.page=h;view.detailId=''}
     else {view.page='feed';view.detailId=''}
-    render();if(view.page==='discover'&&view.search.trim().length>=2&&(remote.query!==view.search.trim()||remote.page!==view.remotePage))startRemoteSearch();if(view.page==='travel'&&view.travelSearch.trim().length>=2&&(travelRemote.query!==view.travelSearch.trim()||travelRemote.page!==view.travelRemotePage))startTravelSearch();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);window.scrollTo({top:0,behavior:'instant'});
+    render();if(view.page==='discover'&&view.search.trim().length>=2&&(remote.query!==view.search.trim()||remote.page!==view.remotePage))startRemoteSearch();if(view.page==='travel'&&view.travelSearch.trim().length>=2&&(travelRemote.query!==view.travelSearch.trim()||travelRemote.page!==view.travelRemotePage))startTravelSearch();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);if(['posts','post','detail'].includes(view.page))void loadPosts();window.scrollTo({top:0,behavior:'instant'});
   }
   function handleAction(target,clickEvent){const action=target.dataset.action;
     if(action==='navigate'){location.hash=target.dataset.page;syncRoute()}
     else if(action==='new-record'){location.hash='discover';syncRoute()}
+    else if(action==='theme-toggle'){theme=theme==='archive'?'club':'archive';document.body.classList.toggle('theme-archive',theme==='archive');try{localStorage.setItem('tongpin:ui-theme',theme)}catch(_){};render()}
+    else if(action==='new-post')postForm(target.dataset.id||'');
+    else if(action==='open-post'){location.hash='post/'+encodeURIComponent(target.dataset.id);syncRoute()}
+    else if(action==='delete-post')void deletePost(target.dataset.id);
+    else if(action==='delete-comment')void deleteComment(target.dataset.id);
+    else if(action==='sheet-import')sheetDialog();
+    else if(action==='confirm-sheet')void confirmSheetImport();
+    else if(action==='bulk-row-toggle'){const i=Number(target.dataset.row);if(bulkDraft?.rows[i]){bulkDraft.rows[i].selected=target.checked;updateSheetSummary()}}
     else if(action==='travel-record'){$('travel-search-input')?.focus();toast('先搜索或选择地点，再记录体验')}
     else if(action==='record')recordForm(target.dataset.id);
     else if(action==='detail')detail(target.dataset.id);
@@ -684,7 +787,9 @@ import {coverImageUrl} from './coverUrl.js';
       else if(scope==='travel-local'){view.travelLocalPage=p;render()}
       else if(scope==='travel-remote'&&p<=view.travelRemotePage+1){view.travelRemotePage=p;startTravelSearch()}
       else if(scope==='rank'){view.rankPage=paginate(ranking().slice(3),p,8).page;$('ranking-list').innerHTML=rankingHTML()}
+      else if(scope==='posts'){const filtered=threadData.posts.filter(x=>view.postCategory==='all'||itemById(x.itemId)?.category===view.postCategory);view.postPage=paginate(filtered,p,10).page;render()}
     }
+    else if(action==='post-category'){view.postCategory=target.dataset.category;view.postPage=1;render()}
     else if(action==='rank-category'){view.rankCategory=target.dataset.category;view.rankPage=1;render()}
     else if(action==='personal-category'){view.personalCategory=target.dataset.category;render()}
     else if(action==='personal-display'){view.personalDisplay=target.dataset.display==='list'?'list':'shelf';try{localStorage.setItem('tongpin:archive-display',view.personalDisplay)}catch(_){}render()}
@@ -706,10 +811,11 @@ import {coverImageUrl} from './coverUrl.js';
     else if(t.id==='personal-status'){view.personalStatus=t.value;$('personal-list').innerHTML=personalList()}
     else if(t.id==='personal-sort'){view.personalSort=t.value;$('personal-list').innerHTML=personalList()}
     else if(t.id==='import-file')importData(t);
+    else if(t.id==='sheet-file')void previewSheetFile(t);
   });
   document.addEventListener('submit', async e=>{
     const form=e.target, id=form.id;
-    if(!['record-form','item-form','password-login-form','register-form','password-form','create-circle-form','join-circle-form','nickname-form'].includes(id))return;
+    if(!['record-form','item-form','password-login-form','register-form','password-form','create-circle-form','join-circle-form','nickname-form','post-form','comment-form'].includes(id))return;
     e.preventDefault();
     if(isBusy)return;
     const f=new FormData(form);
@@ -752,6 +858,17 @@ import {coverImageUrl} from './coverUrl.js';
         const {error}=await db.from('profiles').update({nickname}).eq('id',ME);
         if(error)throw error;
         await refreshAll(true);toast('昵称已更新');
+      } else if(id==='post-form'){
+        const item=itemById(String(f.get('itemId')||''));if(!item||!['game','anime'].includes(item.category))throw Error('请选择游戏或动画作品');
+        const title=String(f.get('title')||'').trim(),body=String(f.get('body')||'').trim();
+        if(title.length<2||title.length>80||body.length<1||body.length>5000)throw Error('标题需要 2～80 字，正文需要 1～5000 字');
+        unwrap(await db.from('circle_posts').insert({user_id:ME,circle_id:activeCircle.id,item_id:item.id,title,body,spoiler:f.has('spoiler')}));
+        closeModal();await loadPosts(true);location.hash='posts';syncRoute();toast('帖子已发布到圈内');
+      } else if(id==='comment-form'){
+        const post=threadData.posts.find(x=>x.id===String(f.get('postId')));const body=String(f.get('body')||'').trim();
+        if(!post||body.length<1||body.length>1000)throw Error('回复需要 1～1000 字');
+        unwrap(await db.from('post_comments').insert({user_id:ME,circle_id:activeCircle.id,post_id:post.id,body}));
+        await loadPosts(true);toast('回复已发布');
       } else if(id==='record-form'){
         const item=itemById(String(f.get('itemId')));
         if(!item)throw Error('请先创建或选择条目');
