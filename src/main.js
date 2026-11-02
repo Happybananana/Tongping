@@ -14,6 +14,7 @@ import "./v061-collection-pages.css";
 import "./v062-import-flow.css";
 import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
 import {posterScoreTone,evaluateImportMatch} from "./importLookup.js";
+import {prepareImportRow,applyImportDecision,confirmImportCandidate,clearImportCandidate,toggleImportRow,canSelectImportRow,getImportLookupJobs,getImportSelectionSummary,hasConfirmedImportItem} from "./importSelection.js";
 import {getPersonalStats} from "./personalStats.js";
 import {findPostSubjects} from "./postSearch.js";
 import {paginate} from './pagination.js';
@@ -495,7 +496,7 @@ import {coverImageUrl} from './coverUrl.js';
     return `<section class="panel archive-stats"><div class="stats-title"><span class="eyebrow">MY COLLECTION / INSIGHTS</span><h2>我的收藏统计 <span>COLLECTION REPORT</span></h2><p>基于当前已保存的游戏、动画和地点记录，不包含其他成员的私密评分。</p></div><div class="stats-tiles"><div><span>收藏总量</span><strong>${stats.total}</strong><small>条个人记录</small></div><div><span>我的平均分</span><strong>${stats.avg==null?'—':stats.avg.toFixed(1)}</strong><small>${stats.rated} 条有效评分</small></div><div><span>完成率</span><strong>${stats.completionRate}%</strong><small>已完成 / 已看完 / 去过</small></div><div><span>游戏 · 动画</span><strong>${stats.categoryCounts.game} : ${stats.categoryCounts.anime}</strong><small>${stats.categoryCounts.place} 个旅行地点</small></div></div><div class="stats-viz"><div><h3>体验状态</h3><div class="stat-statuses">${Object.entries(stats.statusCounts).map(([k,v])=>`<span>${statusName[k]} <strong>${v}</strong></span>`).join('')}</div><h3>个人评分分布</h3><div class="stat-distribution">${stats.distribution.map(x=>`<div><small>${x.label}</small><span><b style="width:${stats.rated?Math.max(2,x.count/stats.rated*100):0}%"></b></span><em>${x.count}</em></div>`).join('')}</div></div><div><h3>作品发行年份分布 <small>非游玩/观看日期</small></h3>${stats.releaseYears.length?`<div class="stats-years">${stats.releaseYears.map(x=>`<div><span>${x.count}</span><i style="height:${Math.max(6,x.count/maxYear*86)}px"></i><small>${x.year}</small></div>`).join('')}</div>`:'<p class="help-copy">暂无已知发行年份资料。</p>'}</div></div></section>`;
   }
   // Preview → online suggestions → explicit candidate selection → commit.
-  // Search results are never imported without the user's per-row approval.
+  // Only unambiguous matches are selected automatically; every write still needs final confirmation.
   function sheetDialog(){bulkDraft?.abortController?.abort();sheetLookupSerial++;bulkDraft=null;openModal(`${modalTop('批量导入已有收藏')}<section class="sheet-dialog"><p>支持 .xlsx 和 .csv，最大 2MB，每次不超过 300 行。先匹配圈内共享库，再自动连续联网找片；明确匹配的作品会自动勾选，遇到同名版本等疑点时留给你集中确认。</p><div class="sheet-template-actions"><a class="sheet-template-link" href="/templates/tongpin-import-template.xlsx" download="同频-收藏导入模板.xlsx">↓ 下载 Excel 模板</a><a class="sheet-template-link secondary" href="/templates/tongpin-import-template.csv" download="同频-收藏导入模板.csv">CSV 模板</a><small>模板第一张表填写数据；导入个人记录不覆盖旧评分。</small></div><div class="form-field"><label>表格没有类别列时</label><select id="sheet-category" class="form-control"><option value="anime">动画 / 番剧</option><option value="game">游戏</option></select></div><div class="form-field"><label for="sheet-file">选择表格文件</label><input id="sheet-file" type="file" accept=".csv,.xlsx" class="form-control"/></div><div id="sheet-preview" aria-live="polite"><p class="help-copy">文件在浏览器解析；联网搜索通过同频服务端，不将文件本身上传第三方。</p></div></section>`)}
   function matchedImportItem(row){
     const norm=normalizedName(row.name),alias=normalizedName(row.subtitle),year=String(row.year||'').slice(0,4);
@@ -511,40 +512,42 @@ import {coverImageUrl} from './coverUrl.js';
     return viable[0];
   }
   function sheetMatchDescription(row,i){
-    if(row.match)return '<span class="sheet-match">已匹配圈内共享库</span>';
     if(row.error)return `<small class="sheet-error">${esc(row.error)}</small>`;
+    if(row.match)return '<span class="sheet-match">已匹配圈内共享库</span>';
     const candidates=row.suggestions||[];
     const status=row.lookupState==='loading'?'正在在线搜索…':row.lookupState==='error'?'搜索失败 · 可单条重试':row.lookupState==='done'&&!candidates.length?'在线无可靠候选':row.lookupState==='done'?'请审核候选并选择':row.lookupState==='queued'?'等待自动搜索':'尚未联网匹配';
     return `<div class="sheet-candidate-box" id="sheet-candidates-${i}"><span class="sheet-lookup-state">${row.remoteChoice?(row.autoChosen?'✓ 高置信度自动匹配 · 可更换':'✓ 已手动确认网络作品')+' · '+esc(row.remoteChoice.provider):status}</span>${candidates.length?`<div class="sheet-candidate-list">${candidates.map((c,j)=>`<button type="button" class="sheet-candidate ${row.remoteChoice===c?'is-picked':''}" data-action="sheet-select-candidate" data-row="${i}" data-candidate="${j}" aria-pressed="${row.remoteChoice===c}">${coverImageUrl(c.coverUrl)?`<img class="sheet-candidate-cover" src="${esc(coverImageUrl(c.coverUrl))}" alt="" loading="lazy" onerror="this.remove()"/>`:''}<b>${row.remoteChoice===c?'✓ ':'○ '}${esc(c.name)}</b><small>${esc(c.provider==='bangumi'?'Bangumi':c.provider==='jikan'?'MAL / Jikan':c.provider==='igdb'?'IGDB':c.provider==='rawg'?'RAWG':c.provider||'在线资料')} · ${esc(c.year||'年份未知')} ${c.platform?`· ${esc(c.platform)}`:''}</small></button>`).join('')}</div>`:''}${row.remoteChoice?`<button type="button" class="sheet-unpick" data-action="sheet-clear-candidate" data-row="${i}">取消该匹配</button>`:''}${row.lookupState==='error'?`<button type="button" class="sheet-unpick" data-action="sheet-retry" data-row="${i}">↻ 重新搜索该条</button>`:''}</div>`;
   }
-  function updateSheetRow(i){const row=bulkDraft?.rows?.[i],holder=$(`sheet-match-${i}`);if(row&&holder)holder.innerHTML=sheetMatchDescription(row,i);updateSheetSummary();}
+  function syncSheetCheckbox(i){
+    const row=bulkDraft?.rows?.[i],checkbox=$(`sheet-check-${i}`);
+    if(!row||!checkbox)return;
+    checkbox.checked=!!row.selected;
+    checkbox.disabled=!canSelectImportRow(row,{allowManualCreation:!!$('sheet-create-missing')?.checked});
+    checkbox.title=row.error?row.error:row.match?'已匹配共享作品':row.remoteChoice?'已确认网络作品':$('sheet-create-missing')?.checked?'你已允许手动建档，可自行勾选':'尚无确认作品，先等待匹配或选择候选';
+  }
+  function updateSheetRow(i){const row=bulkDraft?.rows?.[i],holder=$(`sheet-match-${i}`);if(row&&holder)holder.innerHTML=sheetMatchDescription(row,i);syncSheetCheckbox(i);updateSheetSummary();}
   async function previewSheetFile(input){const file=input.files?.[0];if(!file)return;bulkDraft?.abortController?.abort();const serial=++sheetLookupSerial;try{
     $('sheet-preview').textContent='正在解析表格与匹配共享作品…';const grid=await readSheetFile(file);
     if(serial!==sheetLookupSerial||!$('sheet-preview'))return;
     bulkDraft={...parseImportRows(grid,{fallbackCategory:$('sheet-category')?.value||'anime'}),paused:false,lookingUp:false,abortController:new AbortController()};
-    const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name)+':'+String(row.year||'')+':'+String(row.providerId||'');row.match=matchedImportItem(row);row.suggestions=[];row.remoteChoice=null;row.autoChosen=false;row.lookupState=row.match?'matched':'queued';if(seen.has(key)){row.error='表格内重复作品';row.selected=false;}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';row.selected=false;}}
-    const rows=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${r.error?'disabled':''} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}${r.year?' · '+esc(r.year):''}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td id="sheet-match-${i}">${sheetMatchDescription(r,i)}</td></tr>`).join('');
-    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>自动连续搜索所有选中、尚未匹配的作品，同时最多 2 个请求，按频率排队。明确匹配的作品自动选定，其他候选可集中审核。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-toggle" id="sheet-lookup-toggle">暂停搜索</button></div><div class="sheet-lookup-progress"><progress id="sheet-lookup-progress" value="0" max="1"></progress><span id="sheet-lookup-detail" aria-live="polite"></span></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 对仍找不到、或未确认在线候选的作品，允许按原表格名称手动建档</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
+    const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name)+':'+String(row.year||'')+':'+String(row.providerId||'');row.match=matchedImportItem(row);row.suggestions=[];row.remoteChoice=null;row.autoChosen=false;row.lookupState=row.match?'matched':'queued';if(seen.has(key)){row.error='表格内重复作品';}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';}prepareImportRow(row);}
+    const rows=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" id="sheet-check-${i}" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${canSelectImportRow(r)?'':'disabled'} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}${r.year?' · '+esc(r.year):''}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td id="sheet-match-${i}">${sheetMatchDescription(r,i)}</td></tr>`).join('');
+    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>自动搜索全部未匹配作品（即使尚未勾选），最多同时 2 个请求。默认仅勾选共享库匹配、高置信度自动匹配及手动确认候选；其余留待审核。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-toggle" id="sheet-lookup-toggle">暂停搜索</button></div><div class="sheet-lookup-progress"><progress id="sheet-lookup-progress" value="0" max="1"></progress><span id="sheet-lookup-detail" aria-live="polite"></span></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 可选：允许手动勾选未匹配作品并按表格名称建档（默认不选，不自动创建）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
     updateSheetSummary();void autoFindSheetMatches(serial);
   }catch(e){if(serial!==sheetLookupSerial)return;bulkDraft=null;if($('sheet-preview'))$('sheet-preview').textContent='解析失败：'+String(e.message||e)}}
   function updateSheetSummary(){
     const el=$('sheet-summary');if(!el||!bulkDraft)return;
-    const draft=bulkDraft,selected=draft.rows.filter(r=>r.selected&&!r.error);
-    const jobs=selected.filter(r=>!r.match),pending=jobs.filter(r=>r.lookupState==='queued');
-    const finished=jobs.filter(r=>['done','error'].includes(r.lookupState)).length;
-    const auto=selected.filter(r=>r.autoChosen).length;
-    const manual=selected.filter(r=>r.remoteChoice&&!r.autoChosen).length;
-    const review=jobs.filter(r=>r.lookupState==='done'&&!r.remoteChoice&&r.suggestions?.length).length;
-    const failed=jobs.filter(r=>r.lookupState==='error').length;
-    el.textContent=`识别 ${draft.rows.length} 条 · 已选 ${selected.length} 条 · 共享库 ${selected.filter(r=>r.match).length} 条 · 自动选定 ${auto} 条 · 手动确认 ${manual} 条 · 待审核 ${review} 条`;
-    const progress=$('sheet-lookup-progress');if(progress){progress.max=Math.max(1,jobs.length);progress.value=Math.min(finished,jobs.length)}
-    const detail=$('sheet-lookup-detail');if(detail)detail.textContent=`已搜索 ${finished}/${jobs.length} · 失败 ${failed} · ${draft.paused?'已暂停':draft.lookingUp?'正在自动匹配…':pending.length?'等待开始…':'搜索完成'}`;
+    const draft=bulkDraft,info=getImportSelectionSummary(draft.rows);
+    el.textContent=`识别 ${info.total} 条 · 默认/已选 ${info.selected} 条 · 共享库 ${info.local} 条 · 高置信度 ${info.auto} 条 · 人工确认 ${info.reviewed} 条 · 待审核 ${info.pendingReview} 条 · 无结果 ${info.noResults} 条`;
+    const progress=$('sheet-lookup-progress');if(progress){progress.max=Math.max(1,info.searchTotal);progress.value=Math.min(info.finished,info.searchTotal)}
+    const detail=$('sheet-lookup-detail');if(detail)detail.textContent=`已搜索 ${info.finished}/${info.searchTotal} · 失败 ${info.failed} · ${draft.paused?'已暂停':draft.lookingUp?'正在自动匹配…':info.pending?'等待开始…':'搜索完成'}`;
+    const pending=draft.rows.filter(r=>!r.error&&!r.match&&r.lookupState==='queued');
     const button=$('sheet-lookup-toggle');if(button){button.disabled=!pending.length&&!draft.lookingUp;button.textContent=draft.paused?'继续自动搜索':(draft.lookingUp?'暂停搜索':pending.length?'开始搜索':'搜索已完成');}
     const confirm=$('sheet-confirm');if(confirm){confirm.disabled=!!draft.lookingUp;confirm.title=draft.lookingUp?'匹配正在进行，可暂停并等待当前请求结束后确认':'';}
   }
   async function autoFindSheetMatches(serial=sheetLookupSerial){
     const draft=bulkDraft;if(!draft||draft.lookingUp||draft.paused)return;
-    const queued=draft.rows.map((r,i)=>r.selected&&!r.error&&!r.match&&r.lookupState==='queued'?i:-1).filter(i=>i>=0);
+    const queued=getImportLookupJobs(draft.rows);
     if(!queued.length){updateSheetSummary();return;}
     draft.lookingUp=true;updateSheetSummary();
     const current=()=>serial===sheetLookupSerial&&bulkDraft===draft&&!draft.abortController.signal.aborted&&!!$('sheet-preview');
@@ -556,7 +559,7 @@ import {coverImageUrl} from './coverUrl.js';
       async function worker(){
         while(current()&&!draft.paused&&cursor<queued.length){
           const i=queued[cursor++],row=draft.rows[i];
-          if(!row.selected||row.lookupState!=='queued')continue;
+          if(row.error||row.match||row.lookupState!=='queued')continue;
           // Global launch interval, shared across workers; at most two concurrent requests.
           const now=Date.now(),wait=Math.max(0,nextAllowed-now);
           nextAllowed=Math.max(now,nextAllowed)+750;
@@ -571,11 +574,7 @@ import {coverImageUrl} from './coverUrl.js';
             if(!response.ok)throw Error(payload.error||`HTTP ${response.status}`);
             if(!current())break;
             const result=evaluateImportMatch(row,payload.items);
-            row.suggestions=result.candidates;
-            row.remoteChoice=result.choice;
-            row.autoChosen=!!result.choice;
-            row.matchReason=result.reason;
-            row.lookupState='done';
+            applyImportDecision(row,result);
           }catch(e){
             if(!current())break;
             row.lookupState='error';row.lookupError=String(e.message||e).slice(0,75);
@@ -586,16 +585,18 @@ import {coverImageUrl} from './coverUrl.js';
       await Promise.all([worker(),worker()]);
     }catch(e){
       if(current()){
-        for(const row of draft.rows){if(row.selected&&row.lookupState==='queued'){row.lookupState='error';row.lookupError='登录验证失败';}}
+        for(const row of draft.rows){if(!row.error&&!row.match&&row.lookupState==='queued'){row.lookupState='error';row.lookupError='登录验证失败';}}
         draft.rows.forEach((_,i)=>updateSheetRow(i));toast('联网找片失败：'+displayError(e));
       }
     }finally{
       if(bulkDraft===draft){draft.lookingUp=false;updateSheetSummary()}
     }
   }
-  async function confirmSheetImport(){if(isBusy||!bulkDraft||bulkDraft.lookingUp)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);if(!selected.length){toast('请选择可导入的作品');return}
+  async function confirmSheetImport(){if(isBusy||!bulkDraft||bulkDraft.lookingUp)return;
     const createMissing=!!$('sheet-create-missing')?.checked,share=!!$('sheet-share')?.checked;
-    if(selected.some(r=>!r.match&&!r.remoteChoice)&&!createMissing){toast('存在未确认候选的作品。请逐项选择，或允许手动建档');return}
+    const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);
+    if(!selected.length){toast('没有已勾选的可导入作品。请先审核候选或等待自动匹配');return}
+    if(selected.some(r=>!canSelectImportRow(r,{allowManualCreation:createMissing}))){toast('包含未确认的作品，已阻止导入。请选择候选或单独允许手动建档');return}
     const countNetwork=selected.filter(r=>r.remoteChoice).length,countManual=selected.filter(r=>!r.match&&!r.remoteChoice).length;
     if(!confirm(`确认导入 ${selected.length} 条记录？联网资料 ${countNetwork} 条，手动建档 ${countManual} 条。${share?'这些记录将对圈内公开。':'默认仅自己可见。'} 已有评分不会被覆盖。`))return;
     isBusy=true;const button=$('sheet-confirm');if(button)button.disabled=true;
@@ -920,10 +921,10 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='sheet-import')sheetDialog();
     else if(action==='confirm-sheet')void confirmSheetImport();
     else if(action==='sheet-lookup-toggle'){if(bulkDraft){bulkDraft.paused=!bulkDraft.paused;updateSheetSummary();if(!bulkDraft.paused)void autoFindSheetMatches()}}
-    else if(action==='sheet-select-candidate'){const i=Number(target.dataset.row),j=Number(target.dataset.candidate),row=bulkDraft?.rows?.[i];if(row?.suggestions?.[j]){row.remoteChoice=row.suggestions[j];row.autoChosen=false;updateSheetRow(i)}}
-    else if(action==='sheet-clear-candidate'){const i=Number(target.dataset.row),row=bulkDraft?.rows?.[i];if(row){row.remoteChoice=null;row.autoChosen=false;updateSheetRow(i)}}
+    else if(action==='sheet-select-candidate'){const i=Number(target.dataset.row),j=Number(target.dataset.candidate),row=bulkDraft?.rows?.[i];if(confirmImportCandidate(row,row?.suggestions?.[j]))updateSheetRow(i)}
+    else if(action==='sheet-clear-candidate'){const i=Number(target.dataset.row),row=bulkDraft?.rows?.[i];if(row){clearImportCandidate(row);updateSheetRow(i)}}
     else if(action==='sheet-retry'){const i=Number(target.dataset.row),row=bulkDraft?.rows?.[i];if(row&&!row.match&&!bulkDraft.lookingUp){row.lookupState='queued';row.lookupError='';bulkDraft.paused=false;updateSheetRow(i);void autoFindSheetMatches()}}
-    else if(action==='bulk-row-toggle'){const i=Number(target.dataset.row);if(bulkDraft?.rows[i]){bulkDraft.rows[i].selected=target.checked;updateSheetSummary();if(target.checked&&!bulkDraft.paused&&!bulkDraft.lookingUp)void autoFindSheetMatches()}}
+    else if(action==='bulk-row-toggle'){const i=Number(target.dataset.row),row=bulkDraft?.rows?.[i];if(row){toggleImportRow(row,target.checked,{allowManualCreation:!!$('sheet-create-missing')?.checked});syncSheetCheckbox(i);updateSheetSummary()}}
     else if(action==='travel-record'){$('travel-search-input')?.focus();toast('先搜索或选择地点，再记录体验')}
     else if(action==='record')recordForm(target.dataset.id);
     else if(action==='detail')detail(target.dataset.id);
@@ -972,6 +973,12 @@ import {coverImageUrl} from './coverUrl.js';
     else if(t.id==='personal-sort'){view.personalSort=t.value;view.posterPage=1;$('personal-list').innerHTML=personalList()}
     else if(t.id==='import-file')importData(t);
     else if(t.id==='sheet-file')void previewSheetFile(t);
+    else if(t.id==='sheet-create-missing'&&bulkDraft){
+      // Disabling manual creation also removes any unchecked-by-default raw rows
+      // that the user had explicitly opted into creating.
+      if(!t.checked)for(const row of bulkDraft.rows)if(!hasConfirmedImportItem(row)){row.selected=false;row.selectionTouched=false;}
+      bulkDraft.rows.forEach((_,i)=>syncSheetCheckbox(i));updateSheetSummary();
+    }
   });
   document.addEventListener('submit', async e=>{
     const form=e.target, id=form.id;
