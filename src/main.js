@@ -7,8 +7,10 @@ import "./v0531-podium-fix.css";
 import "./v054-mobile-fix.css";
 import "./v056-flow.css";
 import "./v057-archive.css";
+import "./v058-design.css";
 import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
 import {getPersonalStats} from "./personalStats.js";
+import {findPostSubjects} from "./postSearch.js";
 import {paginate} from './pagination.js';
 import {db, ready} from './cloud.js';
 import {findExistingCatalogItem} from './catalogMatch.js';
@@ -74,8 +76,8 @@ import {coverImageUrl} from './coverUrl.js';
   let travelSearchTimer = null;
   let travelSearchSerial = 0;
   let travelRemote = {items:[],notices:[],state:'idle',query:'',category:'place',page:1,hasMore:false};
-  let view = {page:'feed',detailId:'',postId:'',postCategory:'all',postPage:1,returnPage:'discover',category:'all',rankCategory:'all',rankMode:'average',rankPage:1,feedPage:1,minThree:false,search:'',personalCategory:'all',personalStatus:'all',personalSort:'recent',personalDisplay:'shelf',localPage:1,remotePage:1,travelSearch:'',travelLocalPage:1,travelRemotePage:1,travelMinThree:false};
-  try { if(localStorage.getItem('tongpin:archive-display')==='list')view.personalDisplay='list'; } catch(_) {}
+  let view = {page:'feed',detailId:'',postId:'',postCategory:'all',postPage:1,returnPage:'discover',category:'all',rankCategory:'all',rankMode:'average',rankPage:1,feedPage:1,minThree:false,search:'',personalCategory:'all',personalStatus:'all',personalSort:'recent',personalDisplay:'shelf',posterPage:1,localPage:1,remotePage:1,travelSearch:'',travelLocalPage:1,travelRemotePage:1,travelMinThree:false};
+  try { const display=localStorage.getItem('tongpin:archive-display');if(['list','poster','shelf'].includes(display))view.personalDisplay=display;else if(theme==='archive')view.personalDisplay='poster'; } catch(_) {if(theme==='archive')view.personalDisplay='poster'}
   const $ = id => document.getElementById(id);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const itemById = id => data.items.find(x=>x.id===id);
@@ -131,12 +133,14 @@ import {coverImageUrl} from './coverUrl.js';
   function cats(active,action) {return `<div class="filters">${CATEGORIES.map(c=>`<button class="filter-btn ${active===c.id?'selected':''}" data-action="${action}" data-category="${c.id}">${c.name}</button>`).join('')}</div>`}
   function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('visible'),2700)}
   function nav(){
+    const archiveNames={feed:'资料首页',discover:'发现作品',circle:'圈内榜单',posts:'讨论室',travel:'旅行档案',me:'我的收藏'};
+    const displayName=n=>theme==='archive'?(archiveNames[n.id]||n.name):n.name;
     const build=(mobile=false)=>(mobile?NAV.filter(n=>n.id!=='posts'):NAV).map(n=>mobile
-      ? `<button class="${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id)||(view.page==='posts'&&n.id==='circle')||(view.page==='post'&&n.id==='circle'))?'active':''}" data-action="navigate" data-page="${n.id}"><span class="bottom-icon">${icon(n.icon,21)}</span><span>${n.name}</span></button>`
-      : `<button class="nav-button ${view.page===n.id?'active':''}" data-action="navigate" data-page="${n.id}"><span class="nav-icon">${icon(n.icon,19)}</span><span>${n.name}</span>${(n.id===view.page||(view.page==='detail'&&n.id===view.returnPage))?'<span class="nav-active-dot"></span>':''}</button>`).join('');
+      ? `<button class="${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id)||(view.page==='posts'&&n.id==='circle')||(view.page==='post'&&n.id==='circle'))?'active':''}" data-action="navigate" data-page="${n.id}"><span class="bottom-icon">${icon(n.icon,21)}</span><span>${displayName(n)}</span></button>`
+      : `<button class="nav-button ${view.page===n.id?'active':''}" data-action="navigate" data-page="${n.id}"><span class="nav-icon">${icon(n.icon,19)}</span><span>${displayName(n)}</span>${(n.id===view.page||(view.page==='detail'&&n.id===view.returnPage))?'<span class="nav-active-dot"></span>':''}</button>`).join('');
     $('side-nav').innerHTML=build();
     $('bottom-nav').innerHTML=build(true);
-    $('top-nav').innerHTML=NAV.map(n=>`<button class="top-nav-link ${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''}" data-action="navigate" data-page="${n.id}"><span>${n.name}</span></button>`).join('');
+    $('top-nav').innerHTML=NAV.map(n=>`<button class="top-nav-link ${(view.page===n.id||(view.page==='detail'&&view.returnPage===n.id))?'active':''}" data-action="navigate" data-page="${n.id}"><span>${displayName(n)}</span></button>`).join('');
   }
   function side(){const rated=ownRecords().filter(isRated);const ranked=data.items.map(summarize).filter(x=>x.count).sort((a,b)=>b.average-a.average).slice(0,3);$('right-rail').innerHTML=`
     <div class="side-welcome"><span class="side-flower">✺</span><div class="side-welcome-kicker">A NOTE FROM THE VIDEO STORE</div><h3>生活值得<br>被认真收藏。</h3><p>一场游戏，一段旅程，一部留在心里的动画。把这些微小的闪光，慢慢整理成自己的片单。</p><div class="side-line"></div><span class="side-welcome-footer">${icon('spark',15)} SOMEWHERE TO BELONG</span></div>
@@ -152,8 +156,16 @@ import {coverImageUrl} from './coverUrl.js';
     const spotlight=data.items.filter(item=>item.category!=='place').map(summarize).filter(x=>x.count).sort((a,b)=>b.count-a.count||b.average-a.average)[0];
     return `<section class="chapter-passage"><div class="chapter-giant">01<span>/</span>03</div><div class="chapter-copy"><span class="eyebrow">SIDE B / FROM THE ARCHIVE</span><p>每一个瞬间，<br>都值得<span>按下 REC。</span></p><div class="chapter-copy-note"><small>放进去的是经历，倒带时就能看见彼此。</small></div></div>${spotlight?`<button class="chapter-postcard" data-action="detail" data-id="${esc(spotlight.item.id)}"><span class="chapter-postcard-label">TOP RENTAL / 本期热门</span>${cover(spotlight.item,'chapter-postcard-cover')}<span class="chapter-postcard-name">${esc(spotlight.item.name)}</span><span class="chapter-postcard-foot">${spotlight.count} 人评分 · 查看影片 ↗</span></button>`:`<button class="chapter-postcard chapter-postcard-empty" data-action="navigate" data-page="discover"><span class="chapter-postcard-label">A SPACE FOR STORIES</span><span class="chapter-postcard-empty-mark">✳</span><span class="chapter-postcard-name">第一盒磁带，等你录制。</span><span class="chapter-postcard-foot">进入探索 ↗</span></button>`}</section>`;
   }
+  function archiveLanding(){
+    const ranked=data.items.filter(i=>i.category!=='place').map(summarize).filter(s=>s.count).sort((a,b)=>b.average-a.average||b.count-a.count).slice(0,4);
+    return `<section class="atlas-landing"><div class="atlas-landing-copy"><span class="atlas-overline">RESONANCE / THE COLLECTION · VOL. 001</span><h1>为所有热爱，<br><em>建立一份索引。</em></h1><p>游戏、动画，和朋友留下的那些独特视角。<br>这是一个不断生长的私人影像档案。</p><div class="atlas-actions"><button class="primary-btn" data-action="navigate" data-page="discover">探索作品 ↗</button><button class="btn-ghost" data-action="navigate" data-page="me">查看我的收藏</button></div><div class="atlas-counters"><span><strong>${data.items.filter(i=>i.category!=='place').length}</strong> 共享作品</span><span><strong>${threadData.posts.length}</strong> 圈内讨论</span><span><strong>${USERS.length}</strong> 位成员</span></div></div><div class="atlas-cover-mosaic" aria-label="本期精选封面">${ranked.map((s,i)=>`<button type="button" class="atlas-mosaic-item atlas-mosaic-${i+1}" data-action="detail" data-id="${esc(s.item.id)}" title="${esc(s.item.name)}">${cover(s.item,'atlas-mosaic-cover')}<span>${esc(s.item.name)}</span></button>`).join('')||'<span class="atlas-mosaic-empty">从第一部作品开始，建立我们共同的档案。</span>'}<span class="atlas-mosaic-seal">ARCHIVE<br>EDITION</span></div></section><div class="atlas-section-label"><span>01 / CURATED SELECTION</span><strong>本期精选</strong><button data-action="navigate" data-page="circle">查看完整榜单 ↗</button></div>${featuredSelections()}`;
+  }
+  function homePosts(){
+    const posts=threadData.posts.filter(p=>itemById(p.itemId)&&['game','anime'].includes(itemById(p.itemId).category)).slice(0,3);
+    return `<section class="home-discussions" aria-label="最新圈内讨论"><div class="home-posts-head"><div><span class="eyebrow">AFTER THE CREDITS / LATEST CONVERSATIONS</span><h2>刚刚开聊 <em>↗</em></h2><p>除了给作品打分，也来看看朋友们最近想聊什么。</p></div><button class="btn-ghost" data-action="navigate" data-page="posts">进入讨论区 ↗</button></div>${threadData.error?`<p class="discussion-empty">${esc(threadData.error)}</p>`:posts.length?`<div class="home-posts-grid">${posts.map(p=>{const item=itemById(p.itemId),comments=threadData.comments.filter(c=>c.postId===p.id).length;return `<button type="button" class="home-post-entry" data-action="open-post" data-id="${esc(p.id)}"><span class="home-post-cover">${cover(item,'home-post-thumb')}</span><span class="home-post-copy"><small>${esc(CAT_NAME[item.category])} / ${esc(item.name)}</small><strong>${esc(p.title)}</strong><span>${esc(userById(p.userId).name)} · ${notifyAge(p.createdAt)} · ${comments} 回复</span><em>${p.spoiler?'◈ 含剧透，点击查看':esc(p.body.slice(0,56))}</em></span><span class="home-post-arrow">↗</span></button>`}).join('')}</div>`:'<div class="home-posts-empty"><span>暂无帖子，来聊聊最近玩过或看过的作品。</span><button type="button" class="btn-ghost" data-action="new-post">＋ 发起话题</button></div>'}</section>`;
+  }
   function feed(){const events=allShared().filter(r=>itemById(r.itemId)?.category!=='place').slice().sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt));const mine=ownRecords().length;const feedInfo=paginate(events,view.feedPage,FEED_PAGE_SIZE);view.feedPage=feedInfo.page;return `
-    <section class="hero gallery-hero immersive-hero video-store-hero" data-motion="hero" aria-label="同频录像店首页">
+    ${theme==='archive'?archiveLanding():`<section class="hero gallery-hero immersive-hero video-store-hero" data-motion="hero" aria-label="同频录像店首页">
       <div class="store-backdrop" aria-hidden="true"></div><div class="store-halftone" aria-hidden="true"></div>
       <div class="gallery-hero-top"><span><i></i> ON AIR / RESONANCE VIDEO CLUB</span><span>OPEN ALL NIGHT · EST. 2026</span></div>
       <div class="hero-content"><span class="hero-kicker">YOUR LITTLE CORNER OF POP CULTURE</span>
@@ -167,11 +179,12 @@ import {coverImageUrl} from './coverUrl.js';
     <div class="gallery-marquee" aria-label="频道栏目"><div class="marquee-line"><span>✳ ALWAYS REWIND</span><span>▶ GAME / ANIME / TRAVEL</span><span>✳ YOUR FRIENDS ARE ON AIR</span><span>▶ NO ALGORITHM JUST TASTE</span><span>同频 · 录像俱乐部</span></div></div>
     <div class="overview-row"><div class="overview-item"><div class="overview-icon icon-lilac">${icon('bookmark',19)}</div><div><strong>${mine}</strong><span>我的记录</span></div></div><div class="overview-divider"></div><div class="overview-item"><div class="overview-icon icon-peach">${icon('star',19)}</div><div><strong>${allShared().filter(isRated).length}</strong><span>圈内评分</span></div></div><div class="overview-divider"></div><div class="overview-item"><div class="overview-icon icon-sage">${icon('users',19)}</div><div><strong>${USERS.length}</strong><span>同频伙伴</span></div></div></div>
     ${chapterPassage()}
-    ${featuredSelections()}
-    <div class="feed-section-head"><div><span class="eyebrow">NEW RELEASES / FRIEND FREQUENCY <span class="eyebrow-dot">✧</span></span><h2 class="section-title">朋友正在播放<span class="tiny-spark"> ✳</span></h2><p class="section-sub">新番与新游，每一天都有新节目；旅行故事请到「沿途车站」。</p><div class="feed-section-meta"><span class="feed-count">${feedInfo.total} 条动态</span>${feedInfo.totalPages>1?`<span class="feed-page-chip">PAGE ${feedInfo.page}/${feedInfo.totalPages}</span>`:''}</div></div><button class="btn-ghost feed-head-btn" data-action="navigate" data-page="circle">圈内榜单 ${icon('arrow',15)}</button></div>
+    ${featuredSelections()}`}
+    <div class="feed-section-head"><div><span class="eyebrow">NEW RELEASES / FRIEND FREQUENCY <span class="eyebrow-dot">✧</span></span><h2 class="section-title">${theme==='archive'?'伙伴的近期记录':'朋友正在播放'}<span class="tiny-spark"> ✳</span></h2><p class="section-sub">新番与新游，每一天都有新节目；旅行故事请到「沿途车站」。</p><div class="feed-section-meta"><span class="feed-count">${feedInfo.total} 条动态</span>${feedInfo.totalPages>1?`<span class="feed-page-chip">PAGE ${feedInfo.page}/${feedInfo.totalPages}</span>`:''}</div></div><button class="btn-ghost feed-head-btn" data-action="navigate" data-page="circle">圈内榜单 ${icon('arrow',15)}</button></div>
     <div class="feed-list">${!feedInfo.items.length?'<div class="panel empty-state"><strong>圈子里还没有动态</strong><p>记录第一条体验，和朋友一起慢慢积累回忆。</p><button class="primary-btn" data-action="navigate" data-page="discover">⌕ 去找片并记录</button></div>':''}${feedInfo.items.map((r,index)=>{const item=itemById(r.itemId);if(!item)return '';return `<article class="panel feed-card ${index===0?'feed-card-feature':''}"><div class="feed-user">${avatar(r.userId)}<div><div class="name">${esc(userById(r.userId).name)} <span class="user-action">${esc(labelStatus(item.category,r.status))}了</span></div><div class="meta">${notifyAge(r.updatedAt)} · 分享了一条体验</div></div><span class="spacer"></span><span class="tag tag-${item.category}">${CAT_EMOJI[item.category]} ${CAT_NAME[item.category]}</span></div>
       <div class="content-row">${cover(item)}<div class="feed-detail"><div class="feed-item-sub">${esc(item.subtitle||CAT_NAME[item.category])}</div><button class="record-title clickable" data-action="detail" data-id="${item.id}">${esc(item.name)}</button><div class="feed-ratingline">${isRated(r)?`<span class="rating" aria-label="个人评分 ${r.rating.toFixed(1)} / 10"><em>MY SCORE</em><strong>${r.rating.toFixed(1)}</strong><small> / 10</small></span><span class="rating-label">${r.rating>=9?'特别喜欢':r.rating>=8?'值得体验':'我的评分'}</span>`:`<span class="tag gray">暂未评分</span>`}</div>${r.note?`<div class="note">${r.spoiler?'◈ 剧透内容已隐藏，进入作品详情后可查看':`“${esc(r.note)}”`}</div>`:''}</div></div><div class="subbar"><span>${icon('users',14)} ${visibleRatings(item.id).length} 位伙伴打过分</span><span class="spacer"></span><button class="action-link" data-action="detail" data-id="${item.id}">查看评价 ${icon('arrow',14)}</button></div></article>`}).join('')}</div>
-    ${feedInfo.totalPages>1?`<div class="feed-pager-wrap"><span class="pagination-summary">最新动态分页展示 · 每页 ${FEED_PAGE_SIZE} 条</span>${renderPager('feed',feedInfo.page,feedInfo.totalPages)}</div>`:''}`}
+    ${feedInfo.totalPages>1?`<div class="feed-pager-wrap"><span class="pagination-summary">最新动态分页展示 · 每页 ${FEED_PAGE_SIZE} 条</span>${renderPager('feed',feedInfo.page,feedInfo.totalPages)}</div>`:''}
+    ${homePosts()}`;}
   const FEED_PAGE_SIZE = 8;
   const LOCAL_PAGE_SIZE = 10;
   const TRAVEL_PAGE_SIZE = 9;
@@ -181,7 +194,7 @@ import {coverImageUrl} from './coverUrl.js';
     const end=Math.min(totalPages,start+4);
     const buttons=[];
     for(let i=start;i<=end;i++)buttons.push(`<button type="button" class="pager-page ${i===page?'active':''}" data-action="page-change" data-scope="${scope}" data-page="${i}" aria-label="第 ${i} 页" aria-current="${i===page?'page':'false'}">${i}</button>`);
-    const aria=scope==='feed'?'朋友正在播放':scope==='local'?'共享作品':scope==='travel-local'?'旅行地点':scope==='rank'?'好友频道排行榜':scope==='posts'?'圈内帖子':'线上搜索';return `<nav class="page-controls" aria-label="${aria}分页"><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page-1}" ${page===1?'disabled':''}>← 上一页</button><span class="pager-number-group">${buttons.join('')}</span><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page+1}" ${page>=totalPages?'disabled':''}>下一页 →</button><span class="pager-page-label">${page} / ${totalPages}</span></nav>`;
+    const aria=scope==='feed'?'朋友正在播放':scope==='local'?'共享作品':scope==='travel-local'?'旅行地点':scope==='rank'?'好友频道排行榜':scope==='posts'?'圈内帖子':scope==='poster'?'我的海报墙':'线上搜索';return `<nav class="page-controls" aria-label="${aria}分页"><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page-1}" ${page===1?'disabled':''}>← 上一页</button><span class="pager-number-group">${buttons.join('')}</span><button type="button" data-action="page-change" data-scope="${scope}" data-page="${page+1}" ${page>=totalPages?'disabled':''}>下一页 →</button><span class="pager-page-label">${page} / ${totalPages}</span></nav>`;
   }
   function discoverMatches(){const search=view.search.trim().toLocaleLowerCase();return data.items.filter(x=>x.category!=='place'&&(view.category==='all'||x.category===view.category)&&(!search||`${x.name} ${x.subtitle||''}`.toLocaleLowerCase().includes(search)));}
   function discoverList(){const matches=discoverMatches(),info=paginate(matches,view.localPage,LOCAL_PAGE_SIZE);view.localPage=info.page;
@@ -351,7 +364,14 @@ import {coverImageUrl} from './coverUrl.js';
     if(!records.length)return '';
     return `<section class="mix-section"><div class="mix-section-heading"><div><span>${serial} / REWIND TO PLAY</span><h3>${esc(label)}</h3></div><span class="mix-tape-count">${records.length} TAPES <b>↗</b></span></div><div class="mix-scroll" tabindex="0" aria-label="${esc(label)}的收藏，横向滚动查看更多">${records.map((r,i)=>{const item=itemById(r.itemId);return `<button type="button" class="mix-tape" data-action="detail" data-id="${esc(item.id)}" aria-label="查看${esc(item.name)}的详情" style="--tilt:${[-5,4,-2,5,-4,2][i%6]}deg;--cassette-index:${i}"><span class="mix-tape-case"><span class="mix-cassette-spine">R · ${serial} · ${String(i+1).padStart(2,'0')}</span>${cover(item,'mix-tape-cover')}<span class="mix-tape-sticker">${CAT_NAME[item.category]} / ${esc(labelStatus(item.category,r.status))}</span><span class="mix-tape-reels"><b></b><b></b></span></span><span class="mix-tape-info"><strong>${esc(item.name)}</strong><span>${isRated(r)?`MY SCORE <b>${r.rating.toFixed(1)}</b>`:'未评分'} ${item.bangumiScore?' · BGM '+Number(item.bangumiScore).toFixed(1):''}</span></span></button>`}).join('')}</div><span class="mix-scroll-hint">← SCROLL THE RACK →</span></section>`;
   }
+  function posterWall(records){
+    const page=paginate(records,view.posterPage,24);view.posterPage=page.page;
+    const cards=page.items.map((r,i)=>{const item=itemById(r.itemId);if(!item)return '';const official=item.provider==='bangumi'&&Number(item.bangumiScore)>0?`BGM ${Number(item.bangumiScore).toFixed(1)}`:'';
+      return `<button type="button" class="poster-card" data-action="detail" data-id="${esc(item.id)}" aria-label="打开 ${esc(item.name)}"><span class="poster-art">${cover(item,'poster-cover')}<span class="poster-status">${esc(labelStatus(item.category,r.status))}</span>${isRated(r)?`<span class="poster-score">${r.rating.toFixed(1)} <small>MY</small></span>`:''}</span><span class="poster-info"><strong>${esc(item.name)}</strong><span>${esc(item.year||'年份未详')} · ${esc(CAT_NAME[item.category])}</span><span class="poster-foot">${official?`<b>${official}</b>`:'<b>MY ARCHIVE</b>'}${r.visibility==='private'?'<small>私密记录</small>':'<small>圈内可见</small>'}</span></span></button>`;}).join('');
+    return `<div class="poster-gallery-head"><div><span>POSTER INDEX / ${records.length} TITLES</span><h3>一面属于你的海报墙。</h3><p>从封面中重新发现热爱。保持原图比例，不拉伸封面。</p></div><span class="poster-count">${String(page.page).padStart(2,'0')} / ${String(page.totalPages).padStart(2,'0')}</span></div><div class="poster-wall">${cards}</div>${renderPager('poster',page.page,page.totalPages)}`;
+  }
   function personalList(){const mine=filteredPersonalRecords();if(!mine.length)return '<div class="empty-state"><strong>还没有符合条件的磁带</strong><p>去「找片」添加你的第一部作品。</p></div>';
+    if(view.personalDisplay==='poster')return posterWall(mine);
     if(view.personalDisplay==='shelf'){
       const rated=mine.filter(isRated),feature=(rated.slice().sort((a,b)=>b.rating-a.rating)[0]||mine[0]),heroItem=itemById(feature.itemId);
       const anime=mine.filter(r=>itemById(r.itemId)?.category==='anime'), games=mine.filter(r=>itemById(r.itemId)?.category==='game');
@@ -366,12 +386,12 @@ import {coverImageUrl} from './coverUrl.js';
     }
     return mine.map(r=>{const item=itemById(r.itemId);return `<div class="item-card">${cover(item,'rank-cover')}<div class="item-text"><button class="clickable" data-action="detail" data-id="${item.id}"><strong>${esc(item.name)}</strong></button><small>${CAT_NAME[item.category]} · ${labelStatus(item.category,r.status)} · ${r.visibility==='private'?'🔒 仅自己可见':'👥 圈内可见'}</small><div class="remote-meta">${bangumiBadge(item,true)}</div></div><div style="text-align:right"><div class="rating" style="font-size:17px">${isRated(r)?r.rating.toFixed(1):'—'}</div><button class="link-btn" data-action="record" data-id="${item.id}">编辑</button></div></div>`}).join('');
   }
-  function me(){const mine=ownRecords(),rated=mine.filter(isRated);return `<div class="locker-utility"><span>MY VIDEO LOCKER / 04 · 私人录像柜</span><button class="primary-btn" data-action="navigate" data-page="discover">⌕ 去找片</button></div>
+  function me(){const mine=ownRecords(),rated=mine.filter(isRated);return `<div class="locker-utility"><span>MY MEDIA ARCHIVE / 04 · 个人收藏档案</span><button class="primary-btn" data-action="navigate" data-page="discover">⌕ 去找片</button></div>
     <div class="stats"><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='game').length}</strong><span>🎮 游戏</span></div><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='anime').length}</strong><span>📺 动画</span></div><button type="button" class="stat stat-travel-gate" data-action="navigate" data-page="travel"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='place').length}</strong><span>🚆 地点 · 去沿途车站 ↗</span></button></div>
     ${statsPanel()}
     <div class="import-entry panel"><div><span class="eyebrow">IMPORT / FROM YOUR ARCHIVE</span><h3>把过去的收藏，一次带进同频。</h3><p>支持 CSV / XLSX，先匹配和预览，再选择导入。默认只对你自己可见，不覆盖已有记录。</p></div><button class="primary-btn" data-action="sheet-import">⇧ 批量导入表格</button></div>
-    <section class="locker-controls"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div><div class="display-toggle" role="group" aria-label="收藏展示方式"><button data-action="personal-display" data-display="shelf" class="${view.personalDisplay==='shelf'?'selected':''}" aria-pressed="${view.personalDisplay==='shelf'}">▣ MIXTAPE 磁带馆</button><button data-action="personal-display" data-display="list" class="${view.personalDisplay==='list'?'selected':''}" aria-pressed="${view.personalDisplay==='list'}">☷ 列表</button></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></section>
-    <div class="panel"><div class="theme-settings"><div><h2 class="section-title">页面主题</h2><p>VIDEO CLUB 复古录像店 / COLLECTION 收藏柜简约界面</p></div><button class="btn-ghost" data-action="theme-toggle">${theme==='archive'?'切换到 VIDEO CLUB':'切换到 COLLECTION'} ⇄</button></div></div>
+    <section class="locker-controls"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div><div class="display-toggle" role="group" aria-label="收藏展示方式"><button data-action="personal-display" data-display="shelf" class="${view.personalDisplay==='shelf'?'selected':''}" aria-pressed="${view.personalDisplay==='shelf'}">▣ MIXTAPE 磁带馆</button><button data-action="personal-display" data-display="poster" class="${view.personalDisplay==='poster'?'selected':''}" aria-pressed="${view.personalDisplay==='poster'}">▦ 海报墙</button><button data-action="personal-display" data-display="list" class="${view.personalDisplay==='list'?'selected':''}" aria-pressed="${view.personalDisplay==='list'}">☷ 列表</button></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></section>
+    <div class="panel"><div class="theme-settings"><div><h2 class="section-title">页面主题</h2><p>VIDEO CLUB 复古录像店 / COLLECTION 编辑式影像资料库</p></div><button class="btn-ghost" data-action="theme-toggle">${theme==='archive'?'切换到 VIDEO CLUB':'切换到 COLLECTION'} ⇄</button></div></div>
     <div class="panel"><h2 class="section-title">账号与云端档案</h2><p class="help-copy">已登录：${esc(authUser?.email||'')}。个人记录保存在 Supabase；导入旧版记录时默认设为“仅自己可见”。</p>
     <form id="nickname-form" class="account-form"><label>圈内昵称</label><input name="nickname" class="form-control" maxlength="40" required value="${esc(userById(ME).name)}"/><button class="btn-ghost" type="submit">更新昵称</button></form>
     <form id="password-form" class="account-form"><label for="new-password">设置 / 修改登录密码</label><input id="new-password" name="newPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="新密码（8 位以上）"/><input name="confirmPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="确认新密码"/><button class="btn-ghost" type="submit">保存密码</button></form><p class="help-copy">旧版 Magic Link 用户：如当前仍已登录，可在此设置密码以保留原账号 ID、圈子和评分。若开启了 Supabase 的安全密码变更验证，旧会话可能还需重新认证。</p>
@@ -418,13 +438,24 @@ import {coverImageUrl} from './coverUrl.js';
     if(postsResult.error||commentsResult.error){threadData.error='帖子暂不可用：'+displayError(postsResult.error||commentsResult.error);threadData.posts=[];threadData.comments=[];}
     else{threadData.posts=postsResult.data.map(p=>({id:p.id,userId:p.user_id,itemId:p.item_id,title:p.title,body:p.body,spoiler:p.spoiler,createdAt:p.created_at}));threadData.comments=commentsResult.data.map(c=>({id:c.id,postId:c.post_id,userId:c.user_id,body:c.body,createdAt:c.created_at}));threadData.loadedAt=Date.now();}
     threadData.circleId=cid;threadData.loading=false;
-    if(['posts','post','detail'].includes(view.page))render();
+    if(['feed','posts','post','detail'].includes(view.page))render();
+  }
+  function renderPostChoices(term=''){
+    const options=findPostSubjects(data.items,term,10),el=$('post-subject-options');if(!el)return;
+    el.innerHTML=options.length?options.map(i=>`<button type="button" role="option" class="post-pick-option" data-action="post-pick-item" data-id="${esc(i.id)}"><span class="post-pick-image">${cover(i,'post-pick-cover')}</span><span><strong>${esc(i.name)}</strong><small>${esc(CAT_NAME[i.category])} · ${esc(i.subtitle||'共享作品')}</small></span><b>选择 ↗</b></button>`).join(''):'<p class="post-pick-noresult">没有匹配作品。可以先去「找片」收录，再回来发帖。</p>';
+  }
+  function pickPostSubject(id){
+    const item=itemById(id),input=$('post-item'),preview=$('post-picked'),results=$('post-subject-options');
+    if(!input||!preview||!item||!['game','anime'].includes(item.category))return;
+    input.value=item.id;
+    preview.innerHTML=`<span class="post-pick-image">${cover(item,'post-pick-cover')}</span><span><small>已绑定讨论作品 · ${esc(CAT_NAME[item.category])}</small><strong>${esc(item.name)}</strong></span><button type="button" data-action="post-pick-clear" aria-label="重新选择作品">更换 ↗</button>`;
+    preview.hidden=false;results.hidden=true;
+    const search=$('post-item-search');if(search)search.value=item.name;
   }
   function postForm(itemId=''){
-    const options=data.items.filter(i=>['anime','game'].includes(i.category)).sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'));
-    if(!options.length){toast('请先在「找片」中加入游戏或动画作品');return}
-    const selected=options.some(i=>i.id===itemId)?itemId:'';
-    openModal(`${modalTop('发起圈内讨论')}<form id="post-form" class="post-editor"><p class="help-copy">只对同圈成员可见，帖子必须绑定一部动画或游戏。旅途记录仍在「沿途车站」。</p><div class="form-field"><label for="post-item">讨论作品</label><select id="post-item" name="itemId" class="form-control" required><option value="">请选择作品（不会自动选择第一项）</option>${options.map(i=>`<option value="${esc(i.id)}" ${selected===i.id?'selected':''}>${esc(CAT_NAME[i.category])} · ${esc(i.name)}</option>`).join('')}</select></div><div class="form-field"><label for="post-title">帖子标题</label><input id="post-title" class="form-control" name="title" minlength="2" maxlength="80" required placeholder="为什么这部作品值得聊一整晚？"/></div><div class="form-field"><label for="post-body">正文</label><textarea id="post-body" name="body" class="form-control" minlength="1" maxlength="5000" rows="7" required placeholder="分享剧情感想、通关心得、分析或提问…"></textarea></div><label class="spoiler-switch"><input type="checkbox" name="spoiler"/> 含有剧透，读者需主动展开</label><div class="modal-actions"><button type="button" class="btn-ghost" data-action="close">取消</button><button type="submit" class="primary-btn">发布到圈内 ↗</button></div></form>`);
+    if(!data.items.some(i=>['anime','game'].includes(i.category))){toast('请先在「找片」中加入游戏或动画作品');return}
+    openModal(`${modalTop('发起圈内讨论')}<form id="post-form" class="post-editor"><p class="help-copy">只对同圈成员可见。搜索圈内现有动画或游戏，再选择要讨论的作品。</p><div class="form-field post-picker"><label for="post-item-search">讨论作品 · 关键词搜索</label><input id="post-item-search" type="search" class="form-control" placeholder="输入中文名、原名或英文名…" autocomplete="off" aria-controls="post-subject-options"/><input id="post-item" name="itemId" type="hidden" value=""/><div id="post-picked" class="post-picked" hidden></div><div id="post-subject-options" class="post-pick-results" role="listbox" aria-label="可选择的共享作品"></div></div><div class="form-field"><label for="post-title">帖子标题</label><input id="post-title" class="form-control" name="title" minlength="2" maxlength="80" required placeholder="为什么这部作品值得聊一整晚？"/></div><div class="form-field"><label for="post-body">正文</label><textarea id="post-body" name="body" class="form-control" minlength="1" maxlength="5000" rows="7" required placeholder="分享剧情感想、通关心得、分析或提问…"></textarea></div><label class="spoiler-switch"><input type="checkbox" name="spoiler"/> 含有剧透，读者需主动展开</label><div class="modal-actions"><button type="button" class="btn-ghost" data-action="close">取消</button><button type="submit" class="primary-btn">发布到圈内 ↗</button></div></form>`);
+    renderPostChoices();if(itemId)pickPostSubject(itemId);
   }
   async function deletePost(id){if(!confirm('删除这条帖子及其回复？'))return;try{unwrap(await db.from('circle_posts').delete().eq('id',id).eq('user_id',ME));await loadPosts(true);location.hash='posts';syncRoute();toast('帖子已删除')}catch(e){toast('删除失败：'+displayError(e))}}
   async function deleteComment(id){if(!confirm('删除自己的回复？'))return;try{unwrap(await db.from('post_comments').delete().eq('id',id).eq('user_id',ME));await loadPosts(true);toast('回复已删除')}catch(e){toast('删除失败：'+displayError(e))}}
@@ -434,7 +465,7 @@ import {coverImageUrl} from './coverUrl.js';
     return `<section class="panel archive-stats"><div class="stats-title"><span class="eyebrow">MY COLLECTION / INSIGHTS</span><h2>我的收藏统计 <span>COLLECTION REPORT</span></h2><p>基于当前已保存的游戏、动画和地点记录，不包含其他成员的私密评分。</p></div><div class="stats-tiles"><div><span>收藏总量</span><strong>${stats.total}</strong><small>条个人记录</small></div><div><span>我的平均分</span><strong>${stats.avg==null?'—':stats.avg.toFixed(1)}</strong><small>${stats.rated} 条有效评分</small></div><div><span>完成率</span><strong>${stats.completionRate}%</strong><small>已完成 / 已看完 / 去过</small></div><div><span>游戏 · 动画</span><strong>${stats.categoryCounts.game} : ${stats.categoryCounts.anime}</strong><small>${stats.categoryCounts.place} 个旅行地点</small></div></div><div class="stats-viz"><div><h3>体验状态</h3><div class="stat-statuses">${Object.entries(stats.statusCounts).map(([k,v])=>`<span>${statusName[k]} <strong>${v}</strong></span>`).join('')}</div><h3>个人评分分布</h3><div class="stat-distribution">${stats.distribution.map(x=>`<div><small>${x.label}</small><span><b style="width:${stats.rated?Math.max(2,x.count/stats.rated*100):0}%"></b></span><em>${x.count}</em></div>`).join('')}</div></div><div><h3>作品发行年份分布 <small>非游玩/观看日期</small></h3>${stats.releaseYears.length?`<div class="stats-years">${stats.releaseYears.map(x=>`<div><span>${x.count}</span><i style="height:${Math.max(6,x.count/maxYear*86)}px"></i><small>${x.year}</small></div>`).join('')}</div>`:'<p class="help-copy">暂无已知发行年份资料。</p>'}</div></div></section>`;
   }
   // Safe two-stage import: preview and explicit confirmation, never overwrite existing experiences.
-  function sheetDialog(){bulkDraft=null;openModal(`${modalTop('批量导入已有收藏')}<section class="sheet-dialog"><p>支持 .xlsx 和 .csv，最大 2MB、每次不超过 300 行。请包含「作品名」列；可选「类别」「我的评分」「状态」「备注」「年份」等。旧版 .xls 请另存为 .xlsx。</p><div class="form-field"><label>如果表格没有类别列，按以下类别导入</label><select id="sheet-category" class="form-control"><option value="anime">动画 / 番剧</option><option value="game">游戏</option></select></div><div class="form-field"><label for="sheet-file">选择表格文件</label><input id="sheet-file" type="file" accept=".csv,.xlsx,.xls" class="form-control"/></div><div id="sheet-preview" aria-live="polite"><p class="help-copy">文件只在浏览器本地解析。请在确认页仔细核对作品名称、评分和匹配情况。</p></div></section>`)}
+  function sheetDialog(){bulkDraft=null;openModal(`${modalTop('批量导入已有收藏')}<section class="sheet-dialog"><p>支持 .xlsx 和 .csv，最大 2MB、每次不超过 300 行。请包含「作品名」列；可选「类别」「我的评分」「状态」「备注」「年份」等。旧版 .xls 请另存为 .xlsx。</p><div class="sheet-template-actions"><a class="sheet-template-link" href="/templates/tongpin-import-template.xlsx" download="同频-收藏导入模板.xlsx">↓ 下载 Excel 模板</a><a class="sheet-template-link secondary" href="/templates/tongpin-import-template.csv" download="同频-收藏导入模板.csv">CSV 模板</a><small>模板第一张表填写数据；不要把说明或示例工作表作为导入内容。</small></div><div class="form-field"><label>如果表格没有类别列，按以下类别导入</label><select id="sheet-category" class="form-control"><option value="anime">动画 / 番剧</option><option value="game">游戏</option></select></div><div class="form-field"><label for="sheet-file">选择表格文件</label><input id="sheet-file" type="file" accept=".csv,.xlsx,.xls" class="form-control"/></div><div id="sheet-preview" aria-live="polite"><p class="help-copy">文件只在浏览器本地解析。请在确认页仔细核对作品名称、评分和匹配情况。</p></div></section>`)}
   function matchedImportItem(row){return data.items.find(x=>x.category===row.category&&((row.providerId&&x.provider==='bangumi'&&x.providerItemId===row.providerId)||normalizedName(x.name)===normalizedName(row.name)||normalizedName(x.subtitle)===normalizedName(row.name)))||null;}
   async function previewSheetFile(input){const file=input.files?.[0];if(!file)return;try{
     $('sheet-preview').textContent='正在解析与匹配…';const grid=await readSheetFile(file);
@@ -536,7 +567,7 @@ import {coverImageUrl} from './coverUrl.js';
       if(showToast)toast('圈子数据已同步');
     }catch(error){
       if(run===refreshSerial){fetchError=displayError(error);console.error('[同频] 数据同步失败',error)}
-    }finally{if(run===refreshSerial){loading=false;render();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);if(['posts','post','detail'].includes(view.page)&&activeCircle)void loadPosts()}}
+    }finally{if(run===refreshSerial){loading=false;render();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);if(['feed','posts','post','detail'].includes(view.page)&&activeCircle)void loadPosts()}}
   }
 
   async function saveExperience(r){
@@ -638,7 +669,7 @@ import {coverImageUrl} from './coverUrl.js';
     if(!authUser){$('page').innerHTML=gate('login');return}
     if(!activeCircle){$('page').innerHTML=gate('circle');return}
     $('rail-foot').innerHTML=`<div class="circle-avatar-stack">${USERS.slice(0,4).map(u=>`<span>${esc(u.name.slice(-1))}</span>`).join('')}</div><strong>${esc(activeCircle.name)}</strong><small>${USERS.length} 位成员 · 私密圈子</small><div class="private-hint">🔒 登录与 RLS 权限保护 · 成员评分已云端同步</div>`;
-    nav();$('page').dataset.page=view.page;
+    nav();document.querySelector('.brand small').textContent=theme==='archive'?'THE COLLECTION / PERSONAL INDEX':'VIDEO CLUB / EST. 2026';$('page').dataset.page=view.page;
     $('page').innerHTML=({feed,discover,circle,posts,post:postPage,travel,me,detail:detailPage}[view.page]||feed)();side();initVisualMotion();
   }
 
@@ -752,13 +783,15 @@ import {coverImageUrl} from './coverUrl.js';
     else if(h.startsWith('post/')){view.postId=h.slice(5);view.page='post'}
     else if(['feed','discover','circle','posts','travel','me'].includes(h)){view.page=h;view.detailId=''}
     else {view.page='feed';view.detailId=''}
-    render();if(view.page==='discover'&&view.search.trim().length>=2&&(remote.query!==view.search.trim()||remote.page!==view.remotePage))startRemoteSearch();if(view.page==='travel'&&view.travelSearch.trim().length>=2&&(travelRemote.query!==view.travelSearch.trim()||travelRemote.page!==view.travelRemotePage))startTravelSearch();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);if(['posts','post','detail'].includes(view.page))void loadPosts();window.scrollTo({top:0,behavior:'instant'});
+    render();if(view.page==='discover'&&view.search.trim().length>=2&&(remote.query!==view.search.trim()||remote.page!==view.remotePage))startRemoteSearch();if(view.page==='travel'&&view.travelSearch.trim().length>=2&&(travelRemote.query!==view.travelSearch.trim()||travelRemote.page!==view.travelRemotePage))startTravelSearch();if(view.page==='detail')void hydrateBangumiDetail(view.detailId);if(['feed','posts','post','detail'].includes(view.page))void loadPosts();window.scrollTo({top:0,behavior:'instant'});
   }
   function handleAction(target,clickEvent){const action=target.dataset.action;
     if(action==='navigate'){location.hash=target.dataset.page;syncRoute()}
     else if(action==='new-record'){location.hash='discover';syncRoute()}
-    else if(action==='theme-toggle'){theme=theme==='archive'?'club':'archive';document.body.classList.toggle('theme-archive',theme==='archive');try{localStorage.setItem('tongpin:ui-theme',theme)}catch(_){};render()}
+    else if(action==='theme-toggle'){theme=theme==='archive'?'club':'archive';document.body.classList.toggle('theme-archive',theme==='archive');if(theme==='archive'&&view.personalDisplay==='shelf')view.personalDisplay='poster';try{localStorage.setItem('tongpin:ui-theme',theme);localStorage.setItem('tongpin:archive-display',view.personalDisplay)}catch(_){};render()}
     else if(action==='new-post')postForm(target.dataset.id||'');
+    else if(action==='post-pick-item')pickPostSubject(target.dataset.id);
+    else if(action==='post-pick-clear'){const hidden=$('post-item'),selected=$('post-picked'),results=$('post-subject-options'),search=$('post-item-search');if(hidden)hidden.value='';if(selected)selected.hidden=true;if(search){search.value='';search.focus()}if(results)results.hidden=false;renderPostChoices()}
     else if(action==='open-post'){location.hash='post/'+encodeURIComponent(target.dataset.id);syncRoute()}
     else if(action==='delete-post')void deletePost(target.dataset.id);
     else if(action==='delete-comment')void deleteComment(target.dataset.id);
@@ -787,12 +820,13 @@ import {coverImageUrl} from './coverUrl.js';
       else if(scope==='travel-local'){view.travelLocalPage=p;render()}
       else if(scope==='travel-remote'&&p<=view.travelRemotePage+1){view.travelRemotePage=p;startTravelSearch()}
       else if(scope==='rank'){view.rankPage=paginate(ranking().slice(3),p,8).page;$('ranking-list').innerHTML=rankingHTML()}
+      else if(scope==='poster'){view.posterPage=paginate(filteredPersonalRecords(),p,24).page;$('personal-list').innerHTML=personalList()}
       else if(scope==='posts'){const filtered=threadData.posts.filter(x=>view.postCategory==='all'||itemById(x.itemId)?.category===view.postCategory);view.postPage=paginate(filtered,p,10).page;render()}
     }
     else if(action==='post-category'){view.postCategory=target.dataset.category;view.postPage=1;render()}
     else if(action==='rank-category'){view.rankCategory=target.dataset.category;view.rankPage=1;render()}
-    else if(action==='personal-category'){view.personalCategory=target.dataset.category;render()}
-    else if(action==='personal-display'){view.personalDisplay=target.dataset.display==='list'?'list':'shelf';try{localStorage.setItem('tongpin:archive-display',view.personalDisplay)}catch(_){}render()}
+    else if(action==='personal-category'){view.personalCategory=target.dataset.category;view.posterPage=1;render()}
+    else if(action==='personal-display'){view.personalDisplay=['shelf','list','poster'].includes(target.dataset.display)?target.dataset.display:'shelf';try{localStorage.setItem('tongpin:archive-display',view.personalDisplay)}catch(_){}render()}
     else if(action==='delete'){if(confirm('确认从云端删除自己的这条记录？'))deleteExperience(target.dataset.id)}
     else if(action==='refresh')refreshAll(true)
     else if(action==='logout')logout()
@@ -802,14 +836,14 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='import')$('import-file').click();
   }
   document.addEventListener('click', e=>{const target=e.target.closest('[data-action]');if(target)handleAction(target,e)});
-  document.addEventListener('input', e=>{if(e.target.id==='search-input'){view.search=e.target.value;view.localPage=1;view.remotePage=1;$('discover-list').innerHTML=discoverList();$('discover-pager').innerHTML=discoverPager();const picks=document.querySelector('.search-quick-picks');if(picks)picks.hidden=!!view.search.trim();startRemoteSearch()}else if(e.target.id==='travel-search-input'){view.travelSearch=e.target.value;view.travelLocalPage=1;view.travelRemotePage=1;renderTravelResults();startTravelSearch()}});
+  document.addEventListener('input', e=>{if(e.target.id==='post-item-search'){const hidden=$('post-item'),selected=$('post-picked'),results=$('post-subject-options');if(hidden)hidden.value='';if(selected)selected.hidden=true;if(results)results.hidden=false;renderPostChoices(e.target.value)}else if(e.target.id==='search-input'){view.search=e.target.value;view.localPage=1;view.remotePage=1;$('discover-list').innerHTML=discoverList();$('discover-pager').innerHTML=discoverPager();const picks=document.querySelector('.search-quick-picks');if(picks)picks.hidden=!!view.search.trim();startRemoteSearch()}else if(e.target.id==='travel-search-input'){view.travelSearch=e.target.value;view.travelLocalPage=1;view.travelRemotePage=1;renderTravelResults();startTravelSearch()}});
   document.addEventListener('change', e=>{
     const t=e.target;
     if(t.id==='min-three'){view.minThree=t.checked;view.rankPage=1;$('ranking-list').innerHTML=rankingHTML()}
     else if(t.id==='travel-three'){view.travelMinThree=t.checked;$('travel-ranking').innerHTML=travelRankingHTML()}
     else if(t.id==='rank-mode'){view.rankMode=t.value;view.rankPage=1;$('ranking-list').innerHTML=rankingHTML()}
-    else if(t.id==='personal-status'){view.personalStatus=t.value;$('personal-list').innerHTML=personalList()}
-    else if(t.id==='personal-sort'){view.personalSort=t.value;$('personal-list').innerHTML=personalList()}
+    else if(t.id==='personal-status'){view.personalStatus=t.value;view.posterPage=1;$('personal-list').innerHTML=personalList()}
+    else if(t.id==='personal-sort'){view.personalSort=t.value;view.posterPage=1;$('personal-list').innerHTML=personalList()}
     else if(t.id==='import-file')importData(t);
     else if(t.id==='sheet-file')void previewSheetFile(t);
   });
