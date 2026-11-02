@@ -8,7 +8,11 @@ import "./v054-mobile-fix.css";
 import "./v056-flow.css";
 import "./v057-archive.css";
 import "./v058-design.css";
+import "./v059-refinement.css";
+import "./v060-flowing-gallery.css";
+import "./v061-collection-pages.css";
 import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
+import {posterScoreTone,rankImportCandidates} from "./importLookup.js";
 import {getPersonalStats} from "./personalStats.js";
 import {findPostSubjects} from "./postSearch.js";
 import {paginate} from './pagination.js';
@@ -65,7 +69,7 @@ import {coverImageUrl} from './coverUrl.js';
   };
   let data = {items:[], records:[]};
   let threadData={posts:[],comments:[],loading:false,error:'',circleId:'',loadedAt:0};
-  let threadSerial=0, bulkDraft=null;
+  let threadSerial=0, bulkDraft=null, sheetLookupSerial=0;
   let theme='club';try{theme=localStorage.getItem('tongpin:ui-theme')==='archive'?'archive':'club'}catch(_){}
   document.body.classList.toggle('theme-archive',theme==='archive');
   let remote = {items:[],notices:[],state:'idle',query:'',category:''};
@@ -156,9 +160,30 @@ import {coverImageUrl} from './coverUrl.js';
     const spotlight=data.items.filter(item=>item.category!=='place').map(summarize).filter(x=>x.count).sort((a,b)=>b.count-a.count||b.average-a.average)[0];
     return `<section class="chapter-passage"><div class="chapter-giant">01<span>/</span>03</div><div class="chapter-copy"><span class="eyebrow">SIDE B / FROM THE ARCHIVE</span><p>每一个瞬间，<br>都值得<span>按下 REC。</span></p><div class="chapter-copy-note"><small>放进去的是经历，倒带时就能看见彼此。</small></div></div>${spotlight?`<button class="chapter-postcard" data-action="detail" data-id="${esc(spotlight.item.id)}"><span class="chapter-postcard-label">TOP RENTAL / 本期热门</span>${cover(spotlight.item,'chapter-postcard-cover')}<span class="chapter-postcard-name">${esc(spotlight.item.name)}</span><span class="chapter-postcard-foot">${spotlight.count} 人评分 · 查看影片 ↗</span></button>`:`<button class="chapter-postcard chapter-postcard-empty" data-action="navigate" data-page="discover"><span class="chapter-postcard-label">A SPACE FOR STORIES</span><span class="chapter-postcard-empty-mark">✳</span><span class="chapter-postcard-name">第一盒磁带，等你录制。</span><span class="chapter-postcard-foot">进入探索 ↗</span></button>`}</section>`;
   }
+  function archiveFlowingWall(){
+    // Use the actual shared catalog. No remote discovery fetch and no simulated posters.
+    // Prefer covers that are already in the shared library; animation only affects the CSS transform.
+    const eligible=data.items.filter(item=>['game','anime'].includes(item.category) && coverImageUrl(coverCache[item.id] || item.coverUrl));
+    const sorted=eligible.map((item,index)=>({item,index,summary:summarize(item)}))
+      .sort((a,b)=>b.summary.count-a.summary.count || (b.summary.average||0)-(a.summary.average||0) || a.index-b.index)
+      .slice(0,18).map(entry=>entry.item);
+    if(!sorted.length)return `<div class="atlas-flow-wall atlas-flow-empty"><span class="atlas-wall-heading">SHARED ARCHIVE / 共享影像库</span><p>还没有可展示的游戏或动画封面。</p><button type="button" data-action="navigate" data-page="discover">去找片，添加第一部作品 ↗</button></div>`;
+    const columns=[[],[],[]];sorted.forEach((item,index)=>columns[index%3].push(item));
+    columns.forEach((col,index)=>{if(!col.length)col.push(sorted[index%sorted.length])});
+    // Repeat each track for seamless vertical movement; decorative copies cannot receive focus.
+    const art=(item,interactive)=>{
+      const src=coverImageUrl(coverCache[item.id] || item.coverUrl);
+      const img=`<img src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.closest('.atlas-flow-poster')?.classList.add('is-missing')"/>`;
+      return interactive?`<button type="button" class="atlas-flow-poster" data-action="detail" data-id="${esc(item.id)}" aria-label="查看${esc(item.name)}" title="${esc(item.name)}">${img}</button>`:`<span class="atlas-flow-poster" aria-hidden="true">${img}</span>`;
+    };
+    return `<div class="atlas-flow-wall" aria-label="共享作品海报流"><span class="atlas-wall-heading">THE SHARED COLLECTION <i>● LIVE</i></span><div class="atlas-flow-stage">${columns.map((col,index)=>{
+      // Columns with too few unique works loop over the same shared entries, never fabricated entries.
+      const repeated=Array.from({length:Math.max(1,Math.ceil(4/col.length))},()=>col).flat();
+      return `<div class="atlas-flow-lane atlas-lane-${index+1}"><div class="atlas-flow-track"><div class="atlas-flow-sequence">${repeated.map(item=>art(item,true)).join('')}</div><div class="atlas-flow-sequence" aria-hidden="true">${repeated.map(item=>art(item,false)).join('')}</div></div></div>`;
+    }).join('')}</div><div class="atlas-wall-foot"><span>REAL TITLES · YOUR CIRCLE</span><span>${sorted.length} / ${eligible.length} COVERS</span></div></div>`;
+  }
   function archiveLanding(){
-    const ranked=data.items.filter(i=>i.category!=='place').map(summarize).filter(s=>s.count).sort((a,b)=>b.average-a.average||b.count-a.count).slice(0,4);
-    return `<section class="atlas-landing"><div class="atlas-landing-copy"><span class="atlas-overline">RESONANCE / THE COLLECTION · VOL. 001</span><h1>为所有热爱，<br><em>建立一份索引。</em></h1><p>游戏、动画，和朋友留下的那些独特视角。<br>这是一个不断生长的私人影像档案。</p><div class="atlas-actions"><button class="primary-btn" data-action="navigate" data-page="discover">探索作品 ↗</button><button class="btn-ghost" data-action="navigate" data-page="me">查看我的收藏</button></div><div class="atlas-counters"><span><strong>${data.items.filter(i=>i.category!=='place').length}</strong> 共享作品</span><span><strong>${threadData.posts.length}</strong> 圈内讨论</span><span><strong>${USERS.length}</strong> 位成员</span></div></div><div class="atlas-cover-mosaic" aria-label="本期精选封面">${ranked.map((s,i)=>`<button type="button" class="atlas-mosaic-item atlas-mosaic-${i+1}" data-action="detail" data-id="${esc(s.item.id)}" title="${esc(s.item.name)}">${cover(s.item,'atlas-mosaic-cover')}<span>${esc(s.item.name)}</span></button>`).join('')||'<span class="atlas-mosaic-empty">从第一部作品开始，建立我们共同的档案。</span>'}<span class="atlas-mosaic-seal">ARCHIVE<br>EDITION</span></div></section><div class="atlas-section-label"><span>01 / CURATED SELECTION</span><strong>本期精选</strong><button data-action="navigate" data-page="circle">查看完整榜单 ↗</button></div>${featuredSelections()}`;
+    return `<section class="atlas-landing atlas-landing-flow"><div class="atlas-landing-copy"><span class="atlas-overline">RESONANCE / THE COLLECTION · VOL. 001</span><h1>为所有热爱，<br><em>建立一份索引。</em></h1><p>游戏、动画，和朋友留下的那些独特视角。<br>这是一个不断生长的私人影像档案。</p><div class="atlas-actions"><button class="primary-btn" data-action="navigate" data-page="discover">探索作品 ↗</button><button class="btn-ghost" data-action="navigate" data-page="me">查看我的收藏</button></div><div class="atlas-counters"><span><strong>${data.items.filter(i=>i.category!=='place').length}</strong> 共享作品</span><span><strong>${threadData.posts.length}</strong> 圈内讨论</span><span><strong>${USERS.length}</strong> 位成员</span></div></div>${archiveFlowingWall()}</section><div class="atlas-section-label"><span>01 / CURATED SELECTION</span><strong>本期精选</strong><button data-action="navigate" data-page="circle">查看完整榜单 ↗</button></div>${featuredSelections()}`;
   }
   function homePosts(){
     const posts=threadData.posts.filter(p=>itemById(p.itemId)&&['game','anime'].includes(itemById(p.itemId).category)).slice(0,3);
@@ -222,6 +247,10 @@ import {coverImageUrl} from './coverUrl.js';
   }
   function discover(){const q=view.search.trim();return `
     <section class="tape-search-hero">
+      <div class="archive-search-header" aria-hidden="false">
+        <div class="archive-search-copy"><span class="archive-search-kicker">RESOURCES / 01 · COLLECTION INDEX</span><h1>发现下一段<br><em>值得收藏的故事。</em></h1><p>从朋友们的共享作品库出发，继续查找动画与游戏资料。每一次收藏，都是一次新的探索。</p><div class="archive-search-counts"><span><b>${data.items.filter(x=>x.category!=='place').length}</b> 部已收录</span><span><b>${data.items.filter(x=>x.category==='anime').length}</b> 部动画</span><span><b>${data.items.filter(x=>x.category==='game').length}</b> 部游戏</span></div></div>
+        <div class="archive-search-index"><span class="archive-index-overline">CATALOGUE / FIELD GUIDE</span><div class="archive-index-glyph" aria-hidden="true">⌕</div><strong>从一个名字开始。</strong><p>搜索共享馆藏，或前往外部资料库发现更多作品。</p><div class="archive-index-footer">RESONANCE · PRIVATE COLLECTION <span>01 / 03</span></div></div>
+      </div>
       <div class="search-signal" aria-hidden="true"><span class="search-signal-dot"></span> INPUT / CH. 02 <span>● LIVE SEARCH</span></div>
       <div class="search-intro-grid"><div><div class="eyebrow">THE VIDEO FINDER / 02</div><h1>找点<br><span>新鲜的。</span></h1><p>用一个名字开启搜寻。先翻找共同片库，再检索 Bangumi；已配置的游戏备源也会一起参与。地点搜索有自己的列车专线。</p></div>
       <div class="search-retro-screen" aria-hidden="true"><span class="search-screen-top">RESONANCE SEARCH ENGINE / 2026</span><b>⌕</b><strong>FIND YOUR<br>NEXT FIX.</strong><span class="search-wave">▂▄▆█▅▃▅█▄▂</span></div></div>
@@ -349,12 +378,12 @@ import {coverImageUrl} from './coverUrl.js';
   function ranking(){let list=data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.count>=1&&(view.rankCategory==='all'||x.item.category===view.rankCategory));if(view.minThree)list=list.filter(x=>x.count>=3);if(view.rankMode==='difference')list=list.filter(x=>x.count>=2).sort((a,b)=>b.spread-a.spread||(b.count-a.count));else list.sort((a,b)=>b.average-a.average||(b.count-a.count)||a.item.name.localeCompare(b.item.name,'zh-CN'));return list}
   function rankingHTML(){const list=ranking(), top=list.slice(0,3), rest=list.slice(3);const val=x=>(view.rankMode==='average'?x.average:x.spread).toFixed(1);const metric=view.rankMode==='average'?'圈内平均分':'评分极差';
     const restPage=paginate(rest,view.rankPage,8);view.rankPage=restPage.page;
-    return `<div class="ranking-console"><div class="rank-console-controls"><label class="toggle rank-toggle"><input type="checkbox" id="min-three" ${view.minThree?'checked':''}/> <span>只看 ≥ 3 人评分</span></label><label class="rank-mode-wrap"><span>播放模式</span><select id="rank-mode" class="sort-select" aria-label="榜单类型"><option value="average" ${view.rankMode==='average'?'selected':''}>最高评分</option><option value="difference" ${view.rankMode==='difference'?'selected':''}>最大分歧</option></select></label></div>
-    <div class="rank-console-intro"><span>LIVE BROADCAST / RANKING TRANSMISSION</span><strong>${view.rankMode==='average'?'谁是本期主角？':'谁让频道吵翻了？'}</strong><small>${view.minThree?'仅统计至少三位成员打分的条目':'默认呈现所有已评分条目'} · ${list.length} 个候选</small></div>
+    return `<div class="ranking-console"><div class="rank-console-controls"><label class="toggle rank-toggle"><input type="checkbox" id="min-three" ${view.minThree?'checked':''}/> <span>只看 ≥ 3 人评分</span></label><label class="rank-mode-wrap"><span><span class="club-label">播放模式</span><span class="archive-label">排序依据</span></span><select id="rank-mode" class="sort-select" aria-label="榜单类型"><option value="average" ${view.rankMode==='average'?'selected':''}>最高评分</option><option value="difference" ${view.rankMode==='difference'?'selected':''}>最大分歧</option></select></label></div>
+    <div class="rank-console-intro"><span class="club-label">LIVE BROADCAST / RANKING TRANSMISSION</span><span class="archive-label">RANKING NOTES / COMMUNITY VOICES</span><strong>${view.rankMode==='average'?'谁是本期主角？':'谁让频道吵翻了？'}</strong><small>${view.minThree?'仅统计至少三位成员打分的条目':'默认呈现所有已评分条目'} · ${list.length} 个候选</small></div>
     ${top.length?`<div class="rank-broadcast">${top.map((x,i)=>`<button type="button" class="broadcast-tape broadcast-no-${i+1}" data-action="detail" data-id="${esc(x.item.id)}" aria-label="榜单第${i+1}名，${esc(x.item.name)}，${metric}${val(x)}"><span class="broadcast-rank-marker">${String(i+1).padStart(2,'0')}<small>${i===0?'TOP RENTAL':'CHART PICK'}</small></span><span class="broadcast-image">${cover(x.item,'broadcast-cover')}</span><span class="broadcast-content"><span class="broadcast-category">${CAT_EMOJI[x.item.category]} ${CAT_NAME[x.item.category]}</span><strong>${esc(x.item.name)}</strong><span class="broadcast-people">${x.count} 人评分 ${x.count<3?'· 样本较少':''}</span></span><span class="broadcast-score">${val(x)}<small>${metric}</small></span></button>`).join('')}</div>`:'<div class="empty-state">当前没有符合筛选条件的作品。试着关闭三人筛选或邀请朋友评分。</div>'}
     ${list.length?`<div class="rank-rest"><div class="rank-rest-head"><div class="rank-rest-label">THE COMPLETE CHART / 完整榜单 <span>${rest.length?`第 4—${list.length} 名 · 分页浏览`:'当前只有前三名作品'}</span></div>${rest.length?`<span class="rank-rest-count">PAGE ${restPage.page}/${restPage.totalPages}</span>`:''}</div>${rest.length?restPage.items.map((x,i)=>{const rankNumber=(restPage.page-1)*restPage.pageSize+i+4;return `<button type="button" class="rank-track" data-action="detail" data-id="${esc(x.item.id)}"><span class="rank-track-num">${String(rankNumber).padStart(2,'0')}</span>${cover(x.item,'rank-track-cover')}<span class="rank-track-title"><strong>${esc(x.item.name)}</strong><small>${x.count} 人打分 · ${CAT_NAME[x.item.category]}</small></span><span class="rank-track-score">${val(x)}</span><span class="rank-track-arrow">↗</span></button>`}).join('')+renderPager('rank',restPage.page,restPage.totalPages):'<div class="rank-rest-empty">当前榜单已全部展示完毕。</div>'}</div>`:''}</div>`;
   }
-  function circle(){const diff=data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.spread!==null).sort((a,b)=>b.spread-a.spread)[0];return `<section class="channel-hero"><div class="channel-hero-copy"><span>ON AIR · PRIVATE CHANNEL / 03</span><h2>我们的<br><em>HOT 100*</em></h2><p>*不一定凑满一百部，但每个分数都来自真正的朋友。</p></div><div class="channel-disc" aria-hidden="true"><div class="disc-label"><span>RESONANCE</span><b>33⅓</b><small>PLAY IT AGAIN</small></div></div></section>
+  function circle(){const diff=data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.spread!==null).sort((a,b)=>b.spread-a.spread)[0];const archivePicks=data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.count).sort((a,b)=>b.average-a.average||b.count-a.count).slice(0,3);return `<section class="archive-chart-hero"><div class="archive-chart-copy"><span class="archive-chart-kicker">COMMUNITY INDEX / 02 · RESONANCE</span><h1>我们共同的<br><em>作品榜单。</em></h1><p>每一份评分，都是朋友留下的观看与游玩笔记。把彼此的喜好，编成一份不断更新的收藏目录。</p><div class="archive-chart-note"><span>由圈子成员评分生成</span><span>${data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.count).length} 部作品参与排行</span></div></div><div class="archive-chart-side"><span class="archive-chart-side-top">OUR HIGHEST SCORES / ALL TITLES</span><div class="archive-chart-picks">${archivePicks.length?archivePicks.map((x,i)=>`<button class="archive-chart-pick" type="button" data-action="detail" data-id="${esc(x.item.id)}"><span class="archive-chart-pick-num">${String(i+1).padStart(2,'0')}</span>${cover(x.item,'archive-chart-cover')}<span class="archive-chart-pick-name">${esc(x.item.name)}</span><strong>${x.average.toFixed(1)}</strong></button>`).join(''):'<p class="archive-chart-empty">邀请朋友评分，一起形成第一份榜单。</p>'}</div><span class="archive-chart-side-foot">COLLECTION / COMMUNITY CHARTS</span></div></section><section class="channel-hero"><div class="channel-hero-copy"><span>ON AIR · PRIVATE CHANNEL / 03</span><h2>我们的<br><em>HOT 100*</em></h2><p>*不一定凑满一百部，但每个分数都来自真正的朋友。</p></div><div class="channel-disc" aria-hidden="true"><div class="disc-label"><span>RESONANCE</span><b>33⅓</b><small>PLAY IT AGAIN</small></div></div></section>
     <section class="community-door"><div><span>DISCUSSION / AFTER THE CREDITS</span><h2>看完还想聊？</h2><p>给刚追完的番、通关的游戏开个话题，只在我们的圈子里交流。</p></div><button class="primary-btn" data-action="navigate" data-page="posts">进入圈内讨论 ↗</button></section>
     <section class="ranking-hub"><div class="rank-hub-heading"><div><span class="eyebrow">CHANNEL CHARTS / THE TASTEMAKERS</span><h2>本期上榜 <b>↗</b></h2><p>前三名登上播放主舞台，其余作品进入可分页的完整曲目表。</p></div><div class="rank-mini-stats"><b>${data.items.filter(x=>x.category!=='place').map(summarize).filter(x=>x.count).length}</b><span>入榜作品</span></div></div>${cats(view.rankCategory,'rank-category')}<div id="ranking-list">${rankingHTML()}</div></section>
     ${diff?`<section class="channel-debate"><div><span class="eyebrow">THE ARGUMENT / 本周争议</span><h3>这部，大家意见很大。</h3><p>评分最高和最低相差 <strong>${diff.spread.toFixed(1)}</strong> 分。</p></div><button data-action="detail" data-id="${esc(diff.item.id)}">${cover(diff.item,'debate-cover')}<span>${esc(diff.item.name)}<small>${diff.count} 人参与评分 ↗</small></span></button></section>`:''}
@@ -367,8 +396,8 @@ import {coverImageUrl} from './coverUrl.js';
   function posterWall(records){
     const page=paginate(records,view.posterPage,24);view.posterPage=page.page;
     const cards=page.items.map((r,i)=>{const item=itemById(r.itemId);if(!item)return '';const official=item.provider==='bangumi'&&Number(item.bangumiScore)>0?`BGM ${Number(item.bangumiScore).toFixed(1)}`:'';
-      return `<button type="button" class="poster-card" data-action="detail" data-id="${esc(item.id)}" aria-label="打开 ${esc(item.name)}"><span class="poster-art">${cover(item,'poster-cover')}<span class="poster-status">${esc(labelStatus(item.category,r.status))}</span>${isRated(r)?`<span class="poster-score">${r.rating.toFixed(1)} <small>MY</small></span>`:''}</span><span class="poster-info"><strong>${esc(item.name)}</strong><span>${esc(item.year||'年份未详')} · ${esc(CAT_NAME[item.category])}</span><span class="poster-foot">${official?`<b>${official}</b>`:'<b>MY ARCHIVE</b>'}${r.visibility==='private'?'<small>私密记录</small>':'<small>圈内可见</small>'}</span></span></button>`;}).join('');
-    return `<div class="poster-gallery-head"><div><span>POSTER INDEX / ${records.length} TITLES</span><h3>一面属于你的海报墙。</h3><p>从封面中重新发现热爱。保持原图比例，不拉伸封面。</p></div><span class="poster-count">${String(page.page).padStart(2,'0')} / ${String(page.totalPages).padStart(2,'0')}</span></div><div class="poster-wall">${cards}</div>${renderPager('poster',page.page,page.totalPages)}`;
+      return `<button type="button" class="poster-card" data-action="detail" data-id="${esc(item.id)}" aria-label="打开 ${esc(item.name)}"><span class="poster-art">${cover(item,'poster-cover')}<span class="poster-status">${esc(labelStatus(item.category,r.status))}</span>${isRated(r)?`<span class="poster-score score-${posterScoreTone(r.rating)}" title="我的评分 ${r.rating.toFixed(1)} / 10">${r.rating.toFixed(1)}</span>`:''}</span><span class="poster-info"><strong>${esc(item.name)}</strong><span>${esc(item.year||'年份未详')} · ${esc(CAT_NAME[item.category])}</span><span class="poster-foot">${official?`<b>${official}</b>`:'<b>MY ARCHIVE</b>'}${r.visibility==='private'?'<small>私密记录</small>':'<small>圈内可见</small>'}</span></span></button>`;}).join('');
+    return `<div class="poster-gallery-head"><div><span>POSTER INDEX / ${records.length} TITLES</span><h3>让喜欢的作品，自己说话。</h3><p>个人评分采用分色方框：8–10 绿 / 6–7.5 黄 / 0.5–5.5 红；与 Bangumi 和圈内分数独立。</p></div><span class="poster-count">${String(page.page).padStart(2,'0')} / ${String(page.totalPages).padStart(2,'0')}</span></div><div class="poster-score-guide" aria-label="个人评分颜色说明"><span><i class="g"></i>8–10 推荐</span><span><i class="y"></i>6–7.5 尚可</span><span><i class="r"></i>0.5–5.5 不太喜欢</span></div><div class="poster-wall">${cards}</div>${renderPager('poster',page.page,page.totalPages)}`;
   }
   function personalList(){const mine=filteredPersonalRecords();if(!mine.length)return '<div class="empty-state"><strong>还没有符合条件的磁带</strong><p>去「找片」添加你的第一部作品。</p></div>';
     if(view.personalDisplay==='poster')return posterWall(mine);
@@ -464,35 +493,74 @@ import {coverImageUrl} from './coverUrl.js';
     const statusName={want:'想体验',doing:'进行中',done:'已完成',paused:'暂时搁置'};
     return `<section class="panel archive-stats"><div class="stats-title"><span class="eyebrow">MY COLLECTION / INSIGHTS</span><h2>我的收藏统计 <span>COLLECTION REPORT</span></h2><p>基于当前已保存的游戏、动画和地点记录，不包含其他成员的私密评分。</p></div><div class="stats-tiles"><div><span>收藏总量</span><strong>${stats.total}</strong><small>条个人记录</small></div><div><span>我的平均分</span><strong>${stats.avg==null?'—':stats.avg.toFixed(1)}</strong><small>${stats.rated} 条有效评分</small></div><div><span>完成率</span><strong>${stats.completionRate}%</strong><small>已完成 / 已看完 / 去过</small></div><div><span>游戏 · 动画</span><strong>${stats.categoryCounts.game} : ${stats.categoryCounts.anime}</strong><small>${stats.categoryCounts.place} 个旅行地点</small></div></div><div class="stats-viz"><div><h3>体验状态</h3><div class="stat-statuses">${Object.entries(stats.statusCounts).map(([k,v])=>`<span>${statusName[k]} <strong>${v}</strong></span>`).join('')}</div><h3>个人评分分布</h3><div class="stat-distribution">${stats.distribution.map(x=>`<div><small>${x.label}</small><span><b style="width:${stats.rated?Math.max(2,x.count/stats.rated*100):0}%"></b></span><em>${x.count}</em></div>`).join('')}</div></div><div><h3>作品发行年份分布 <small>非游玩/观看日期</small></h3>${stats.releaseYears.length?`<div class="stats-years">${stats.releaseYears.map(x=>`<div><span>${x.count}</span><i style="height:${Math.max(6,x.count/maxYear*86)}px"></i><small>${x.year}</small></div>`).join('')}</div>`:'<p class="help-copy">暂无已知发行年份资料。</p>'}</div></div></section>`;
   }
-  // Safe two-stage import: preview and explicit confirmation, never overwrite existing experiences.
-  function sheetDialog(){bulkDraft=null;openModal(`${modalTop('批量导入已有收藏')}<section class="sheet-dialog"><p>支持 .xlsx 和 .csv，最大 2MB、每次不超过 300 行。请包含「作品名」列；可选「类别」「我的评分」「状态」「备注」「年份」等。旧版 .xls 请另存为 .xlsx。</p><div class="sheet-template-actions"><a class="sheet-template-link" href="/templates/tongpin-import-template.xlsx" download="同频-收藏导入模板.xlsx">↓ 下载 Excel 模板</a><a class="sheet-template-link secondary" href="/templates/tongpin-import-template.csv" download="同频-收藏导入模板.csv">CSV 模板</a><small>模板第一张表填写数据；不要把说明或示例工作表作为导入内容。</small></div><div class="form-field"><label>如果表格没有类别列，按以下类别导入</label><select id="sheet-category" class="form-control"><option value="anime">动画 / 番剧</option><option value="game">游戏</option></select></div><div class="form-field"><label for="sheet-file">选择表格文件</label><input id="sheet-file" type="file" accept=".csv,.xlsx,.xls" class="form-control"/></div><div id="sheet-preview" aria-live="polite"><p class="help-copy">文件只在浏览器本地解析。请在确认页仔细核对作品名称、评分和匹配情况。</p></div></section>`)}
-  function matchedImportItem(row){return data.items.find(x=>x.category===row.category&&((row.providerId&&x.provider==='bangumi'&&x.providerItemId===row.providerId)||normalizedName(x.name)===normalizedName(row.name)||normalizedName(x.subtitle)===normalizedName(row.name)))||null;}
-  async function previewSheetFile(input){const file=input.files?.[0];if(!file)return;try{
-    $('sheet-preview').textContent='正在解析与匹配…';const grid=await readSheetFile(file);
+  // Preview → online suggestions → explicit candidate selection → commit.
+  // Search results are never imported without the user's per-row approval.
+  function sheetDialog(){sheetLookupSerial++;bulkDraft=null;openModal(`${modalTop('批量导入已有收藏')}<section class="sheet-dialog"><p>支持 .xlsx 和 .csv，最大 2MB，每次不超过 300 行。先匹配圈内共享库，再自动在线找片；候选作品需要你亲自确认，避免导入同名、重制版或错误平台。</p><div class="sheet-template-actions"><a class="sheet-template-link" href="/templates/tongpin-import-template.xlsx" download="同频-收藏导入模板.xlsx">↓ 下载 Excel 模板</a><a class="sheet-template-link secondary" href="/templates/tongpin-import-template.csv" download="同频-收藏导入模板.csv">CSV 模板</a><small>模板第一张表填写数据；导入个人记录不覆盖旧评分。</small></div><div class="form-field"><label>表格没有类别列时</label><select id="sheet-category" class="form-control"><option value="anime">动画 / 番剧</option><option value="game">游戏</option></select></div><div class="form-field"><label for="sheet-file">选择表格文件</label><input id="sheet-file" type="file" accept=".csv,.xlsx" class="form-control"/></div><div id="sheet-preview" aria-live="polite"><p class="help-copy">文件在浏览器解析；联网搜索通过同频服务端，不将文件本身上传第三方。</p></div></section>`)}
+  function matchedImportItem(row){return data.items.find(x=>x.category===row.category&&((row.providerId&&x.provider==='bangumi'&&String(x.providerItemId)===String(row.providerId))||normalizedName(x.name)===normalizedName(row.name)||normalizedName(x.subtitle)===normalizedName(row.name)))||null;}
+  function sheetMatchDescription(row,i){
+    if(row.match)return '<span class="sheet-match">已匹配圈内共享库</span>';
+    if(row.error)return `<small class="sheet-error">${esc(row.error)}</small>`;
+    const candidates=row.suggestions||[];
+    const status=row.lookupState==='loading'?'正在在线搜索…':row.lookupState==='error'?'网络未连通':row.lookupState==='done'&&!candidates.length?'在线无可靠候选':row.lookupState==='queued'?'等待联网搜索':'尚未联网匹配';
+    return `<div class="sheet-candidate-box" id="sheet-candidates-${i}"><span class="sheet-lookup-state">${row.remoteChoice?'已确认网络作品 · '+esc(row.remoteChoice.provider):status}</span>${candidates.length?`<div class="sheet-candidate-list">${candidates.map((c,j)=>`<button type="button" class="sheet-candidate ${row.remoteChoice===c?'is-picked':''}" data-action="sheet-select-candidate" data-row="${i}" data-candidate="${j}" aria-pressed="${row.remoteChoice===c}">${coverImageUrl(c.coverUrl)?`<img class="sheet-candidate-cover" src="${esc(coverImageUrl(c.coverUrl))}" alt="" loading="lazy" onerror="this.remove()"/>`:''}<b>${row.remoteChoice===c?'✓ ':'○ '}${esc(c.name)}</b><small>${esc(c.provider==='bangumi'?'Bangumi':c.provider==='jikan'?'MAL / Jikan':c.provider==='igdb'?'IGDB':c.provider==='rawg'?'RAWG':c.provider||'在线资料')} · ${esc(c.year||'年份未知')} ${c.platform?`· ${esc(c.platform)}`:''}</small></button>`).join('')}</div>`:''}${row.remoteChoice?`<button type="button" class="sheet-unpick" data-action="sheet-clear-candidate" data-row="${i}">取消该匹配</button>`:''}${row.lookupState==='error'?`<button type="button" class="sheet-unpick" data-action="sheet-retry" data-row="${i}">↻ 重新搜索该条</button>`:''}</div>`;
+  }
+  function updateSheetRow(i){const row=bulkDraft?.rows?.[i],holder=$(`sheet-match-${i}`);if(row&&holder)holder.innerHTML=sheetMatchDescription(row,i);updateSheetSummary();}
+  async function previewSheetFile(input){const file=input.files?.[0];if(!file)return;const serial=++sheetLookupSerial;try{
+    $('sheet-preview').textContent='正在解析表格与匹配共享作品…';const grid=await readSheetFile(file);
+    if(serial!==sheetLookupSerial||!$('sheet-preview'))return;
     bulkDraft=parseImportRows(grid,{fallbackCategory:$('sheet-category')?.value||'anime'});
-    const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name);row.match=matchedImportItem(row);if(seen.has(key)){row.error='表格内重复作品';row.selected=false;}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';row.selected=false;}}
-    const table=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${r.error?'disabled':''} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td>${r.match?'<span class="sheet-match">已匹配共享库</span>':"<span class='sheet-missing'>未匹配</span>"}${r.error?`<small class="sheet-error">${esc(r.error)}</small>`:''}</td></tr>`).join('');
-    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary"></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况</th></tr></thead><tbody>${table}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 允许将未匹配作品作为手动条目添加进当前圈子的共享作品库（请核对同名作品）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
-    updateSheetSummary();
-  }catch(e){bulkDraft=null;$('sheet-preview').textContent='解析失败：'+String(e.message||e)}}
-  function updateSheetSummary(){const el=$('sheet-summary');if(!el||!bulkDraft)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);el.textContent=`识别 ${bulkDraft.rows.length} 条 · 选择 ${selected.length} 条 · 已匹配 ${selected.filter(r=>r.match).length} 条 · 待建档 ${selected.filter(r=>!r.match).length} 条`}
-  async function confirmSheetImport(){if(isBusy||!bulkDraft)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);if(!selected.length){toast('请先选择可导入的作品');return}
+    const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name);row.match=matchedImportItem(row);row.suggestions=[];row.remoteChoice=null;row.lookupState=row.match?'matched':'queued';if(seen.has(key)){row.error='表格内重复作品';row.selected=false;}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';row.selected=false;}}
+    const rows=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${r.error?'disabled':''} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}${r.year?' · '+esc(r.year):''}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td id="sheet-match-${i}">${sheetMatchDescription(r,i)}</td></tr>`).join('');
+    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>每轮查询最多 8 部未匹配作品，控制请求频率。点击候选才会使用它的封面与来源信息。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-more" id="sheet-lookup-more">继续匹配剩余作品</button></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 对仍找不到、或未确认在线候选的作品，允许按原表格名称手动建档</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
+    updateSheetSummary();void autoFindSheetMatches(serial);
+  }catch(e){if(serial!==sheetLookupSerial)return;bulkDraft=null;if($('sheet-preview'))$('sheet-preview').textContent='解析失败：'+String(e.message||e)}}
+  function updateSheetSummary(){const el=$('sheet-summary');if(!el||!bulkDraft)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error),missing=bulkDraft.rows.filter(r=>!r.match&&!r.error),pending=missing.filter(r=>r.lookupState==='queued');
+    el.textContent=`识别 ${bulkDraft.rows.length} 条 · 已选 ${selected.length} 条 · 共享库 ${selected.filter(r=>r.match).length} 条 · 已确认网络候选 ${selected.filter(r=>r.remoteChoice).length} 条 · 等待联网 ${pending.length} 条`;
+    const button=$('sheet-lookup-more');if(button){button.disabled=!pending.length||bulkDraft.lookingUp;button.textContent=bulkDraft.lookingUp?'搜索中…':pending.length?`继续匹配剩余 ${pending.length} 条`:'网络匹配已完成';}const confirm=$('sheet-confirm');if(confirm){confirm.disabled=!!bulkDraft.lookingUp;confirm.title=bulkDraft.lookingUp?'联网搜索正在进行，请稍后确认':''}}
+  async function autoFindSheetMatches(serial=sheetLookupSerial){const draft=bulkDraft;if(!draft||draft.lookingUp)return;const indices=draft.rows.map((r,i)=>(r.selected&&!r.error&&!r.match&&r.lookupState==='queued')?i:-1).filter(i=>i>=0).slice(0,8);
+    if(!indices.length){updateSheetSummary();return;}
+    draft.lookingUp=true;updateSheetSummary();
+    try{
+      const {data:sessionData,error}=await db.auth.getSession();if(error||!sessionData.session?.access_token)throw Error('登录状态失效，请重新登录');
+      const token=sessionData.session.access_token,base=(import.meta.env.VITE_SEARCH_API_BASE||'').trim().replace(/\/$/,'');
+      for(const i of indices){if(serial!==sheetLookupSerial||bulkDraft!==draft||!$('sheet-preview'))break;
+        const row=draft.rows[i];row.lookupState='loading';updateSheetRow(i);
+        try{
+          const url=`${base}/api/search?category=${encodeURIComponent(row.category)}&q=${encodeURIComponent(row.name)}&page=1`;
+          const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(14000)});
+          const payload=await response.json().catch(()=>({}));if(!response.ok)throw Error(payload.error||`HTTP ${response.status}`);
+          if(serial!==sheetLookupSerial||bulkDraft!==draft)break;
+          row.suggestions=rankImportCandidates(row,payload.items,3);row.lookupState='done';
+        }catch(e){if(serial!==sheetLookupSerial||bulkDraft!==draft)break;row.lookupState='error';row.lookupError=String(e.message||e).slice(0,75);}
+        updateSheetRow(i);
+        // Rate-limited query cadence: avoids bursts when fallback providers are active.
+        await new Promise(resolve=>setTimeout(resolve,450));
+      }
+    }catch(e){if(serial===sheetLookupSerial&&bulkDraft===draft){for(const i of indices){const row=draft.rows[i];if(row.lookupState==='queued')row.lookupState='error';updateSheetRow(i)}toast('联网找片失败：'+displayError(e));}}
+    finally{if(bulkDraft===draft){draft.lookingUp=false;updateSheetSummary()}}
+  }
+  async function confirmSheetImport(){if(isBusy||!bulkDraft||bulkDraft.lookingUp)return;const selected=bulkDraft.rows.filter(r=>r.selected&&!r.error);if(!selected.length){toast('请选择可导入的作品');return}
     const createMissing=!!$('sheet-create-missing')?.checked,share=!!$('sheet-share')?.checked;
-    if(selected.some(r=>!r.match)&&!createMissing){toast('存在未匹配作品。请勾选允许建档，或取消这些行');return}
-    if(!confirm(`确认导入 ${selected.length} 条记录吗？${share?'这些记录将对圈内公开。':'记录默认仅自己可见。'} 已有评分不会被覆盖。`))return;
+    if(selected.some(r=>!r.match&&!r.remoteChoice)&&!createMissing){toast('存在未确认候选的作品。请逐项选择，或允许手动建档');return}
+    const countNetwork=selected.filter(r=>r.remoteChoice).length,countManual=selected.filter(r=>!r.match&&!r.remoteChoice).length;
+    if(!confirm(`确认导入 ${selected.length} 条记录？联网资料 ${countNetwork} 条，手动建档 ${countManual} 条。${share?'这些记录将对圈内公开。':'默认仅自己可见。'} 已有评分不会被覆盖。`))return;
     isBusy=true;const button=$('sheet-confirm');if(button)button.disabled=true;
     let inserted=0,skipped=0,created=0;const errors=[];
     try{
       for(const row of selected){
         try{
-          let item=matchedImportItem(row);if(!item){item=await createCatalogItem({category:row.category,name:row.name,subtitle:row.subtitle,year:row.year});created++;}
+          let item=matchedImportItem(row);
+          if(!item&&row.remoteChoice)item=findExistingCatalogItem(data.items,row.remoteChoice);
+          if(!item){const remoteItem=row.remoteChoice;item=await createCatalogItem(remoteItem?{
+            category:remoteItem.category,name:remoteItem.name,subtitle:remoteItem.subtitle,description:remoteItem.description,year:remoteItem.year,coverUrl:remoteItem.coverUrl,sourceUrl:remoteItem.sourceUrl,provider:remoteItem.provider,providerItemId:remoteItem.providerId,platform:remoteItem.platform,tags:remoteItem.tags,bangumiScore:remoteItem.bangumiScore,bangumiRatingTotal:remoteItem.bangumiRatingTotal,bangumiRank:remoteItem.bangumiRank
+          }:{category:row.category,name:row.name,subtitle:row.subtitle,year:row.year});created++;}
           if(own(item.id)){skipped++;continue}
           const {error}=await db.from('experiences').insert({user_id:ME,item_id:item.id,circle_id:share?activeCircle.id:null,visibility:share?'circle':'private',rating:row.rating,status:row.status,note:row.note,spoiler:false});
           if(error){if(error.code==='23505'){skipped++;continue}throw error}
           data.records.push({itemId:item.id,userId:ME,rating:row.rating,status:row.status,note:row.note,visibility:share?'circle':'private',updatedAt:new Date().toISOString()});inserted++;
         }catch(e){skipped++;errors.push(`${row.name}: ${displayError(e)}`)}
       }
-      closeModal();bulkDraft=null;await refreshAll(false);toast(`导入完成：新增 ${inserted} 条、跳过/失败 ${skipped} 条、创建作品 ${created} 条`);
+      sheetLookupSerial++;closeModal();bulkDraft=null;await refreshAll(false);toast(`导入完成：新增 ${inserted} 条，跳过/失败 ${skipped} 条，新建作品 ${created} 条`);
       if(errors.length)alert('部分行未导入：\n'+errors.slice(0,12).join('\n'));
     }finally{isBusy=false}
   }
@@ -797,6 +865,10 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='delete-comment')void deleteComment(target.dataset.id);
     else if(action==='sheet-import')sheetDialog();
     else if(action==='confirm-sheet')void confirmSheetImport();
+    else if(action==='sheet-lookup-more')void autoFindSheetMatches();
+    else if(action==='sheet-select-candidate'){const i=Number(target.dataset.row),j=Number(target.dataset.candidate),row=bulkDraft?.rows?.[i];if(row?.suggestions?.[j]){row.remoteChoice=row.suggestions[j];updateSheetRow(i)}}
+    else if(action==='sheet-clear-candidate'){const i=Number(target.dataset.row),row=bulkDraft?.rows?.[i];if(row){row.remoteChoice=null;updateSheetRow(i)}}
+    else if(action==='sheet-retry'){const i=Number(target.dataset.row),row=bulkDraft?.rows?.[i];if(row&&!row.match&&!bulkDraft.lookingUp){row.lookupState='queued';row.lookupError='';updateSheetRow(i);void autoFindSheetMatches()}}
     else if(action==='bulk-row-toggle'){const i=Number(target.dataset.row);if(bulkDraft?.rows[i]){bulkDraft.rows[i].selected=target.checked;updateSheetSummary()}}
     else if(action==='travel-record'){$('travel-search-input')?.focus();toast('先搜索或选择地点，再记录体验')}
     else if(action==='record')recordForm(target.dataset.id);

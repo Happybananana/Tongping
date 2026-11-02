@@ -1,0 +1,79 @@
+/* V0.6.0: A calm, dark shared-catalog poster stream and a clean personal poster wall.
+   These rules are scoped so VIDEO CLUB and railway designs remain unchanged. */
+
+/* The personal wall keeps exactly two overlays on the cover: status + score. */
+.poster-card .poster-art{isolation:isolate;overflow:hidden}
+.poster-card .poster-cover .cover-caption,
+.poster-card .poster-art .cover-caption,
+.poster-card .poster-art .cover-label{display:none!important}
+.poster-card .poster-cover .cover-photo{object-fit:contain!important}
+.poster-card .poster-status{z-index:9;top:9px;left:9px;border:0!important;border-radius:4px!important;padding:7px 9px!important;background:#f3eee1!important;color:#1c2928!important;box-shadow:0 2px 9px #0005;font-size:10px;font-weight:850}
+.poster-card .poster-score{z-index:9;bottom:9px;right:9px;box-shadow:0 3px 11px #0006!important;letter-spacing:-.04em!important}
+.poster-card .poster-info{position:relative;z-index:1}
+body.theme-archive .poster-card{background:transparent!important;border:0!important;padding:0 0 7px!important;box-shadow:none!important}
+body.theme-archive .poster-card:hover{box-shadow:none!important}
+body.theme-archive .poster-art{border-radius:5px!important;border:1px solid #d8d9d2!important;background:#192524;box-shadow:0 7px 17px #122c2e20!important}
+body.theme-archive .poster-info{padding:11px 2px 0}
+body.theme-archive .poster-info>strong{font-weight:800}
+
+/* The COLLECTION hero uses the existing Supabase shared catalog, not fixed featured cards. */
+body.theme-archive .atlas-landing.atlas-landing-flow{display:grid;grid-template-columns:minmax(0,.98fr) minmax(0,1.02fr);align-items:stretch;gap:clamp(12px,2.4vw,30px)!important;min-height:516px;overflow:hidden;padding:clamp(20px,3.3vw,44px)!important;background:#152321!important;border:1px solid #2d423f!important;border-radius:18px!important;box-shadow:0 18px 44px #152d2b20!important;color:#f0f3e9}
+body.theme-archive .atlas-landing.atlas-landing-flow:before{background:radial-gradient(ellipse at 19% 50%,#385a4e43,transparent 65%),linear-gradient(145deg,#ffffff06,transparent 60%)!important;opacity:1}
+body.theme-archive .atlas-landing.atlas-landing-flow:after{content:none}
+body.theme-archive .atlas-landing-flow .atlas-landing-copy{padding:16px 0 14px 12px;justify-content:center}
+body.theme-archive .atlas-landing-flow .atlas-landing-copy h1{font-family:'Noto Serif SC',Georgia,serif!important;font-size:clamp(40px,4.6vw,70px)!important;line-height:1.24!important}
+body.theme-archive .atlas-landing-flow .atlas-landing-copy h1 em{color:#d2d9b2!important;text-decoration:none}
+body.theme-archive .atlas-landing-flow .atlas-landing-copy p{color:#c0d0c9;font-size:13px;line-height:1.9}
+body.theme-archive .atlas-landing-flow .atlas-counters{border-color:#d4ddd52e}
+body.theme-archive .atlas-landing-flow .atlas-overline{color:#a5b7a7!important}
+
+.atlas-flow-wall{min-width:0;position:relative;height:100%;min-height:430px;padding:35px 0 33px;background:#10191b;border:1px solid #3b4b4a;border-radius:10px;overflow:hidden;isolation:isolate}
+.atlas-flow-wall:before,.atlas-flow-wall:after{content:'';position:absolute;left:0;right:0;height:80px;z-index:5;pointer-events:none}
+.atlas-flow-wall:before{top:0;background:linear-gradient(#10191b 13%,#10191b00)}
+.atlas-flow-wall:after{bottom:0;background:linear-gradient(#10191b00,#10191b 86%)}
+.atlas-wall-heading{position:absolute;z-index:7;top:15px;left:17px;right:17px;display:flex;justify-content:space-between;gap:6px;align-items:center;color:#d7e4dc;font:800 10px/1.25 ui-monospace,SFMono-Regular,monospace;letter-spacing:.11em;pointer-events:none}
+.atlas-wall-heading i{font-style:normal;font-weight:700;color:#b6dfaf;font-size:9px;letter-spacing:.06em}
+.atlas-flow-stage{position:absolute;inset:0 13px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;overflow:hidden;transform:rotate(-6deg) scale(1.10);transform-origin:center;mask-image:linear-gradient(to bottom,transparent 0,#000 13%,#000 87%,transparent 100%)}
+.atlas-flow-lane{height:100%;min-width:0;overflow:hidden}
+.atlas-flow-track{display:flex;flex-direction:column;gap:var(--lane-gap,10px);animation:atlas-rise 43s linear infinite;will-change:transform}
+.atlas-flow-sequence{display:flex;flex-direction:column;gap:var(--lane-gap,10px);min-width:0}
+.atlas-lane-2 .atlas-flow-track{animation-direction:reverse;animation-duration:51s;animation-delay:-11s}
+.atlas-lane-3 .atlas-flow-track{animation-duration:47s;animation-delay:-20s}
+.atlas-flow-poster{display:block;position:relative;border:1px solid #4a5552;background:#293536;border-radius:3px;box-shadow:0 6px 14px #0008;padding:0;aspect-ratio:2 / 3;width:100%;min-height:0;overflow:hidden;flex:none;cursor:pointer;transition:border-color .2s,filter .2s}
+.atlas-flow-poster img{display:block;width:100%;height:100%;object-fit:contain;background:#222c2d}
+.atlas-flow-poster:where(:hover,:focus-visible){filter:brightness(1.12);border-color:#d9e8d0;outline-offset:3px}
+.atlas-flow-poster.is-missing{background:linear-gradient(135deg,#2f4740,#1b2a2a)}
+.atlas-flow-wall:hover .atlas-flow-track,.atlas-flow-wall:focus-within .atlas-flow-track{animation-play-state:paused}
+.atlas-wall-foot{position:absolute;z-index:7;bottom:15px;left:17px;right:17px;display:flex;justify-content:space-between;gap:8px;color:#a9b5ad;font:800 9px/1.3 ui-monospace,SFMono-Regular,monospace;letter-spacing:.09em;pointer-events:none}
+.atlas-flow-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:45px 30px;text-align:center}
+.atlas-flow-empty .atlas-wall-heading{position:static}
+.atlas-flow-empty p{color:#d9e0d7;font-size:13px;line-height:1.75}
+.atlas-flow-empty button{border:1px solid #b6cabc;border-radius:3px;background:transparent;color:#e7f0e8;padding:10px 15px;cursor:pointer;font-size:12px}
+@keyframes atlas-rise{from{transform:translateY(0)}to{transform:translateY(calc(-50% - var(--lane-half-gap,5px)))}}
+
+@media(max-width:900px){
+ body.theme-archive .atlas-landing.atlas-landing-flow{grid-template-columns:minmax(0,1fr) minmax(0,.98fr);gap:16px!important;padding:22px!important}
+ body.theme-archive .atlas-landing-flow .atlas-landing-copy{padding-left:0}
+ .atlas-flow-wall{min-height:385px}
+ .atlas-flow-stage{gap:7px;inset:0 10px;--lane-gap:7px;--lane-half-gap:3.5px}
+ .atlas-flow-track,.atlas-flow-sequence{gap:var(--lane-gap)}
+}
+@media(max-width:760px){
+ body.theme-archive .atlas-landing.atlas-landing-flow{grid-template-columns:minmax(0,1fr);gap:18px!important;padding:23px 17px 18px!important;border-radius:16px!important;min-height:0}
+ body.theme-archive .atlas-landing-flow .atlas-landing-copy{padding:4px 4px 0}
+ body.theme-archive .atlas-landing-flow .atlas-landing-copy h1{font-size:clamp(36px,9.2vw,51px)!important;margin:14px 0!important}
+ body.theme-archive .atlas-landing-flow .atlas-counters{margin-top:20px}
+ .atlas-flow-wall{height:284px;min-height:284px;max-width:100%;border-radius:8px}
+ .atlas-flow-stage{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;transform:rotate(-5deg) scale(1.05)}
+ .atlas-flow-track{animation-duration:65s;will-change:auto}
+ .atlas-lane-2 .atlas-flow-track{animation-duration:70s}
+ .atlas-lane-3 .atlas-flow-track{animation-duration:67s}
+ .poster-card .poster-status{font-size:9px;top:5px;left:5px;padding:5px 6px!important}
+ .poster-card .poster-score{min-width:39px;min-height:39px;bottom:5px;right:5px;font-size:19px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ .atlas-flow-track{animation:none!important;transform:none!important;will-change:auto!important}
+ .atlas-flow-poster{transition:none!important}
+}
+.atlas-flow-poster.is-missing img{display:none}
+.atlas-flow-poster.is-missing:after{content:'▧';display:grid;place-items:center;position:absolute;inset:0;color:#9daea7;font-size:30px}
