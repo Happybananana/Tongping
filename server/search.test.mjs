@@ -76,3 +76,21 @@ test('全部频道的游戏源出错仍显示动画结果及诊断提示',async(
  assert.equal(r.items[0].category,'anime');
  assert.match(r.notices.join(' '),/offline-game/);
 });
+
+test('偶发 Bangumi 故障标记临时不可用且不缓存空结果',async()=>{
+ let calls=0;
+ const fetcher=async()=>{calls++;if(calls===1)throw new Error('temporary network timeout');return {ok:true,json:async()=>({data:[{id:504001,name:'网络恢复的游戏'}]})}};
+ const opts={fetcher,env:{BANGUMI_USER_AGENT:'test',JIKAN_FALLBACK:'0'}};
+ const first=await searchCatalog('game','恢复连接的游戏',opts);
+ assert.equal(first.items.length,0);assert.equal(first.temporaryFailure,true);
+ const second=await searchCatalog('game','恢复连接的游戏',opts);
+ assert.equal(second.items.length,1);assert.equal(second.temporaryFailure,false);
+ assert.equal(calls,2);
+});
+test('真实空结果仍可以短期缓存，不产生无意义重试',async()=>{
+ let calls=0;
+ const opts={fetcher:async()=>{calls++;return {ok:true,json:async()=>({data:[]})}},env:{JIKAN_FALLBACK:'0'}};
+ const a=await searchCatalog('anime','真实不存在的作品XYZ',opts);
+ const b=await searchCatalog('anime','真实不存在的作品XYZ',opts);
+ assert.equal(a.temporaryFailure,false);assert.equal(b.cached,true);assert.equal(calls,1);
+});

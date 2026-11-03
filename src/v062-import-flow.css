@@ -5,3 +5,7 @@
 .sheet-candidate.is-picked{border-color:#3a7c5d!important;background:#e8f3e9!important;color:#173a2c}
 .sheet-candidate-box .sheet-lookup-state{font-weight:800}
 @media(max-width:600px){.sheet-lookup-progress{align-items:stretch}.sheet-lookup-progress progress{flex-basis:100%}}
+
+/* V0.6.4: explain temporary retries rather than reporting them as missing works. */
+.sheet-retry-note{display:block;color:#82652e;background:#fff1cf;border-left:3px solid #dba954;padding:6px 8px;margin:5px 0;font-size:11px;line-height:1.45}
+body.theme-archive .sheet-retry-note{background:#f4efe0;color:#516653;border-left-color:#93a88b}

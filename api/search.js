@@ -12,7 +12,7 @@ function allowed(id){
   const current=old&&now-old.window<60_000?old:{window:now,count:0};
   current.count++; requests.set(id,current);
   if(requests.size>500){for(const [key,v] of requests){if(now-v.window>=60_000)requests.delete(key)}}
-  return current.count<=30;
+  return {ok:current.count<=30,retryAfter:Math.max(1,Math.ceil((current.window+60_000-now)/1000))};
 }
 function send(res,status,data){
   res.setHeader('Cache-Control','no-store');
@@ -28,7 +28,8 @@ export default async function handler(req,res){
     const page=validatePage(url.searchParams.get('page')||1);
     const token=(/^Bearer (.+)$/i.exec(req.headers.authorization||'')||[])[1];
     const userId=await verifySupabaseUser(token);
-    if(!allowed(userId))return send(res,429,{error:'搜索过于频繁，请稍后再试'});
+    const limit=allowed(userId);
+    if(!limit.ok){res.setHeader('Retry-After',String(limit.retryAfter));return send(res,429,{error:'搜索过于频繁，请稍后再试',retryAfter:limit.retryAfter});}
     const result=await searchCatalog(category,query,{page});
     return send(res,200,result);
   }catch(error){

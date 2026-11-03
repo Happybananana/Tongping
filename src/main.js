@@ -16,6 +16,7 @@ import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
 import {posterScoreTone,evaluateImportMatch} from "./importLookup.js";
 import {prepareImportRow,applyImportDecision,confirmImportCandidate,clearImportCandidate,toggleImportRow,canSelectImportRow,getImportLookupJobs,getImportSelectionSummary,hasConfirmedImportItem} from "./importSelection.js";
 import {getPersonalStats} from "./personalStats.js";
+import {createImportPacer,searchImportWithRetry,IMPORT_SEARCH_TIMEOUT_MS} from "./importSearchScheduler.js";
 import {findPostSubjects} from "./postSearch.js";
 import {paginate} from './pagination.js';
 import {db, ready} from './cloud.js';
@@ -515,8 +516,8 @@ import {coverImageUrl} from './coverUrl.js';
     if(row.error)return `<small class="sheet-error">${esc(row.error)}</small>`;
     if(row.match)return '<span class="sheet-match">已匹配圈内共享库</span>';
     const candidates=row.suggestions||[];
-    const status=row.lookupState==='loading'?'正在在线搜索…':row.lookupState==='error'?'搜索失败 · 可单条重试':row.lookupState==='done'&&!candidates.length?'在线无可靠候选':row.lookupState==='done'?'请审核候选并选择':row.lookupState==='queued'?'等待自动搜索':'尚未联网匹配';
-    return `<div class="sheet-candidate-box" id="sheet-candidates-${i}"><span class="sheet-lookup-state">${row.remoteChoice?(row.autoChosen?'✓ 高置信度自动匹配 · 可更换':'✓ 已手动确认网络作品')+' · '+esc(row.remoteChoice.provider):status}</span>${candidates.length?`<div class="sheet-candidate-list">${candidates.map((c,j)=>`<button type="button" class="sheet-candidate ${row.remoteChoice===c?'is-picked':''}" data-action="sheet-select-candidate" data-row="${i}" data-candidate="${j}" aria-pressed="${row.remoteChoice===c}">${coverImageUrl(c.coverUrl)?`<img class="sheet-candidate-cover" src="${esc(coverImageUrl(c.coverUrl))}" alt="" loading="lazy" onerror="this.remove()"/>`:''}<b>${row.remoteChoice===c?'✓ ':'○ '}${esc(c.name)}</b><small>${esc(c.provider==='bangumi'?'Bangumi':c.provider==='jikan'?'MAL / Jikan':c.provider==='igdb'?'IGDB':c.provider==='rawg'?'RAWG':c.provider||'在线资料')} · ${esc(c.year||'年份未知')} ${c.platform?`· ${esc(c.platform)}`:''}</small></button>`).join('')}</div>`:''}${row.remoteChoice?`<button type="button" class="sheet-unpick" data-action="sheet-clear-candidate" data-row="${i}">取消该匹配</button>`:''}${row.lookupState==='error'?`<button type="button" class="sheet-unpick" data-action="sheet-retry" data-row="${i}">↻ 重新搜索该条</button>`:''}</div>`;
+    const status=row.lookupState==='loading'?'正在在线搜索…':row.lookupState==='retrying'?'网络拥堵，自动退避重试…':row.lookupState==='error'?'临时检索失败 · 可单条重试':row.lookupState==='done'&&!candidates.length?'在线无可靠候选':row.lookupState==='done'?'请审核候选并选择':row.lookupState==='queued'?'等待自动搜索':'尚未联网匹配';
+    return `<div class="sheet-candidate-box" id="sheet-candidates-${i}"><span class="sheet-lookup-state">${row.remoteChoice?(row.autoChosen?'✓ 高置信度自动匹配 · 可更换':'✓ 已手动确认网络作品')+' · '+esc(row.remoteChoice.provider):status}</span>${candidates.length?`<div class="sheet-candidate-list">${candidates.map((c,j)=>`<button type="button" class="sheet-candidate ${row.remoteChoice===c?'is-picked':''}" data-action="sheet-select-candidate" data-row="${i}" data-candidate="${j}" aria-pressed="${row.remoteChoice===c}">${coverImageUrl(c.coverUrl)?`<img class="sheet-candidate-cover" src="${esc(coverImageUrl(c.coverUrl))}" alt="" loading="lazy" onerror="this.remove()"/>`:''}<b>${row.remoteChoice===c?'✓ ':'○ '}${esc(c.name)}</b><small>${esc(c.provider==='bangumi'?'Bangumi':c.provider==='jikan'?'MAL / Jikan':c.provider==='igdb'?'IGDB':c.provider==='rawg'?'RAWG':c.provider||'在线资料')} · ${esc(c.year||'年份未知')} ${c.platform?`· ${esc(c.platform)}`:''}</small></button>`).join('')}</div>`:''}${row.lookupState==='retrying'&&row.lookupError?`<small class="sheet-retry-note">${esc(row.lookupError)}</small>`:''}${row.remoteChoice?`<button type="button" class="sheet-unpick" data-action="sheet-clear-candidate" data-row="${i}">取消该匹配</button>`:''}${row.lookupState==='error'?`<span class="sheet-error">${esc(row.lookupError||'暂时不可用')}</span><button type="button" class="sheet-unpick" data-action="sheet-retry" data-row="${i}">↻ 重新搜索该条</button>`:''}</div>`;
   }
   function syncSheetCheckbox(i){
     const row=bulkDraft?.rows?.[i],checkbox=$(`sheet-check-${i}`);
@@ -532,7 +533,7 @@ import {coverImageUrl} from './coverUrl.js';
     bulkDraft={...parseImportRows(grid,{fallbackCategory:$('sheet-category')?.value||'anime'}),paused:false,lookingUp:false,abortController:new AbortController()};
     const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name)+':'+String(row.year||'')+':'+String(row.providerId||'');row.match=matchedImportItem(row);row.suggestions=[];row.remoteChoice=null;row.autoChosen=false;row.lookupState=row.match?'matched':'queued';if(seen.has(key)){row.error='表格内重复作品';}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';}prepareImportRow(row);}
     const rows=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" id="sheet-check-${i}" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${canSelectImportRow(r)?'':'disabled'} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}${r.year?' · '+esc(r.year):''}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td id="sheet-match-${i}">${sheetMatchDescription(r,i)}</td></tr>`).join('');
-    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>自动搜索全部未匹配作品（即使尚未勾选），最多同时 2 个请求。默认仅勾选共享库匹配、高置信度自动匹配及手动确认候选；其余留待审核。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-toggle" id="sheet-lookup-toggle">暂停搜索</button></div><div class="sheet-lookup-progress"><progress id="sheet-lookup-progress" value="0" max="1"></progress><span id="sheet-lookup-detail" aria-live="polite"></span></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 可选：允许手动勾选未匹配作品并按表格名称建档（默认不选，不自动创建）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
+    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>自动搜索全部未匹配作品（即使尚未勾选），最多同时 2 个请求、每分钟约 18 次；遇限流/临时网络错误自动重试。默认仅勾选共享库匹配、高置信度自动匹配及手动确认候选；其余留待审核。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-toggle" id="sheet-lookup-toggle">暂停搜索</button></div><div class="sheet-lookup-progress"><progress id="sheet-lookup-progress" value="0" max="1"></progress><span id="sheet-lookup-detail" aria-live="polite"></span></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 可选：允许手动勾选未匹配作品并按表格名称建档（默认不选，不自动创建）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
     updateSheetSummary();void autoFindSheetMatches(serial);
   }catch(e){if(serial!==sheetLookupSerial)return;bulkDraft=null;if($('sheet-preview'))$('sheet-preview').textContent='解析失败：'+String(e.message||e)}}
   function updateSheetSummary(){
@@ -555,29 +556,38 @@ import {coverImageUrl} from './coverUrl.js';
       const {data:sessionData,error}=await db.auth.getSession();
       if(error||!sessionData.session?.access_token)throw Error('登录状态失效，请重新登录');
       const token=sessionData.session.access_token,base=(import.meta.env.VITE_SEARCH_API_BASE||'').trim().replace(/\/$/,'');
-      let cursor=0,nextAllowed=0;
+      // Per-dialog shared pacing survives pause/resume and covers both workers and retries.
+      const pacer=draft.pacer||(draft.pacer=createImportPacer());
+      let cursor=0;
       async function worker(){
         while(current()&&!draft.paused&&cursor<queued.length){
           const i=queued[cursor++],row=draft.rows[i];
           if(row.error||row.match||row.lookupState!=='queued')continue;
-          // Global launch interval, shared across workers; at most two concurrent requests.
-          const now=Date.now(),wait=Math.max(0,nextAllowed-now);
-          nextAllowed=Math.max(now,nextAllowed)+750;
-          if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
-          if(!current()||draft.paused)break;
-          row.lookupState='loading';updateSheetRow(i);
+          row.lookupState='loading';row.lookupError='';updateSheetRow(i);
           try{
             const url=`${base}/api/search?category=${encodeURIComponent(row.category)}&q=${encodeURIComponent(row.name)}&page=1`;
-            const signal=AbortSignal.any([draft.abortController.signal,AbortSignal.timeout(14000)]);
-            const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`},signal});
-            const payload=await response.json().catch(()=>({}));
-            if(!response.ok)throw Error(payload.error||`HTTP ${response.status}`);
+            const outcome=await searchImportWithRetry({
+              pacer,signal:draft.abortController.signal,paused:()=>draft.paused,
+              request:()=>fetch(url,{headers:{Authorization:`Bearer ${token}`},
+                signal:AbortSignal.any([draft.abortController.signal,AbortSignal.timeout(IMPORT_SEARCH_TIMEOUT_MS)])}),
+              onRetry:({attempt,message,waitMs})=>{
+                if(!current())return;
+                row.lookupState='retrying';row.lookupError=`第 ${attempt} 次未成功：${message.slice(0,55)}；将在约 ${Math.ceil(waitMs/1000)} 秒内重试`;
+                updateSheetRow(i);
+              }
+            });
             if(!current())break;
-            const result=evaluateImportMatch(row,payload.items);
-            applyImportDecision(row,result);
+            if(outcome.kind==='ok'){
+              applyImportDecision(row,evaluateImportMatch(row,outcome.payload.items));
+            }else if(outcome.kind==='paused'){
+              row.lookupState='queued';row.lookupError='';
+            }else{
+              row.lookupState='error';row.lookupError=String(outcome.message||'在线检索暂不可用').slice(0,100);
+            }
           }catch(e){
             if(!current())break;
-            row.lookupState='error';row.lookupError=String(e.message||e).slice(0,75);
+            row.lookupState=draft.paused?'queued':'error';
+            row.lookupError=draft.paused?'':String(e.message||e).slice(0,100);
           }
           updateSheetRow(i);
         }
@@ -589,7 +599,10 @@ import {coverImageUrl} from './coverUrl.js';
         draft.rows.forEach((_,i)=>updateSheetRow(i));toast('联网找片失败：'+displayError(e));
       }
     }finally{
-      if(bulkDraft===draft){draft.lookingUp=false;updateSheetSummary()}
+      if(bulkDraft===draft){draft.lookingUp=false;updateSheetSummary();
+        // If resumed while the previous workers were still exiting, do not leave rows stranded.
+        if(!draft.paused&&getImportLookupJobs(draft.rows).length&&current())void autoFindSheetMatches(serial);
+      }
     }
   }
   async function confirmSheetImport(){if(isBusy||!bulkDraft||bulkDraft.lookingUp)return;

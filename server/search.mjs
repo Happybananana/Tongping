@@ -156,7 +156,7 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,
   const key=`${category}:${query.toLowerCase()}:p${page}`;
   const cached=memo.get(key);
   if(cached && cached.until>Date.now())return {...cached.data,cached:true};
-  const notices=[];let items=[];let hasMore=false;
+  const notices=[];let items=[];let hasMore=false;let primaryFailed=false;
   if(category==='all'){
     // The default category must perform a real remote search, not silently skip it.
     // Isolate failures so one unavailable catalog does not hide results from another.
@@ -171,14 +171,14 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,
       if(animes.items[i])items.push(animes.items[i]);
     }
     const combined={items,notices:[...games.notices,...animes.notices],category,query,page,
-      hasMore:games.hasMore||animes.hasMore,cached:false};
-    memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data:combined});
+      hasMore:games.hasMore||animes.hasMore,temporaryFailure:!items.length&&(games.temporaryFailure||animes.temporaryFailure),cached:false};
+    if(!combined.temporaryFailure)memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data:combined});
     return combined;
   }
   if(category==='anime'||category==='game'){
     let bangumiFailed=false;
     try{items=await bangumiSearch(category,query,fetcher,env,page);hasMore=items.length>=14;}
-    catch(e){bangumiFailed=true;notices.push('Bangumi 暂时不可用：'+errorMessage(e));}
+    catch(e){bangumiFailed=true;primaryFailed=true;notices.push('Bangumi 暂时不可用：'+errorMessage(e));}
     if(category==='anime'&&(bangumiFailed||items.length===0)&&env.JIKAN_FALLBACK!=='0'){
       try{const j=await jikanSearch(query,fetcher,page);items.push(...j.items);hasMore=hasMore||j.hasMore;
         if(j.items.length)notices.push('已启用 MyAnimeList / Jikan 备用搜索；英文或日文关键词更容易匹配');
@@ -198,12 +198,13 @@ async function runSearchCatalog(category,keyword,{fetcher=fetch,env=process.env,
   }else{
     try{const result=await amapSearch(query,fetcher,env,page);items=result.items;hasMore=items.length>=15;
       if(!result.configured)notices.push('未配置高德 Web 服务 Key');
-    }catch(e){notices.push('高德地点搜索暂时不可用：'+errorMessage(e));}
+    }catch(e){primaryFailed=true;notices.push('高德地点搜索暂时不可用：'+errorMessage(e));}
   }
   // 同源去重；不同来源即使同名也保留，入库时再检查已有作品名称。
   const seen=new Set();items=items.filter(x=>{const id=x.provider+':'+x.providerId;if(seen.has(id))return false;seen.add(id);return true;}).slice(0,25);
-  const data={items,notices,category,query,page,hasMore,cached:false};
-  memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data});
+  const data={items,notices,category,query,page,hasMore,temporaryFailure:primaryFailed&&!items.length,cached:false};
+  // A transient upstream failure is NOT an authoritative no-result response; never cache it.
+  if(!data.temporaryFailure)memo.set(key,{until:Date.now()+(items.length?5:1)*60_000,data});
   if(memo.size>250)memo.delete(memo.keys().next().value);
   return data;
 }
