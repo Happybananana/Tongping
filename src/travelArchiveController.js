@@ -218,11 +218,11 @@ async function saveForm(form){const save=form.querySelector('#v68-save'),warn=fo
       visibility:r.visibility,status:r.status,rating:r.rating,note:r.note,spoiler:!!ownRecord(place.id)?.spoiler,
       visited_on:r.visited_on,visit_date_precision:r.visit_date_precision,updated_at:new Date().toISOString()};
     errorIf(await db.from('experiences').upsert(payload,{onConflict:'user_id,item_id'}));
-    closeDialog();showMessage(r.status==='done'?'旅行回忆已保存':'下一站已加入心愿清单');await fetchArchive();
+    closeDialog();showMessage(r.status==='done'?'旅行回忆已保存':'下一站已加入心愿清单');await fetchArchive();document.dispatchEvent(new Event('tongpin:travel-archive-updated'));
   }catch(err){warn.textContent=message(err)}finally{save.disabled=false}
 }
 async function deleteTicket(itemId){if(!itemId||!confirm('确定删除这张旅行车票？个人评分和感想也会删除，此操作不可撤销。'))return;
-  try{errorIf(await db.from('experiences').delete().eq('user_id',state.userId).eq('item_id',itemId));closeDialog();showMessage('旅行车票已删除');await fetchArchive()}
+  try{errorIf(await db.from('experiences').delete().eq('user_id',state.userId).eq('item_id',itemId));closeDialog();showMessage('旅行车票已删除');await fetchArchive();document.dispatchEvent(new Event('tongpin:travel-archive-updated'))}
   catch(err){const warn=dialog.querySelector('#v68-form-error');if(warn)warn.textContent=message(err)}
 }
 function downloadFile(name,content){const blob=new Blob([content],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
@@ -266,7 +266,7 @@ async function importArchive(input){const file=input.files?.[0];if(!file)return;
         state.records.push({user_id:state.userId,item_id:actual.id,...r,updated_at:new Date().toISOString()});saved++;
       }catch(err){console.warn('[同频旅行档案] 跳过一条恢复记录',err);skipped++}
     }
-    showMessage(`旅行档案已恢复 ${saved} 条，跳过 ${skipped} 条`);await fetchArchive();
+    showMessage(`旅行档案已恢复 ${saved} 条，跳过 ${skipped} 条`);await fetchArchive();document.dispatchEvent(new Event('tongpin:travel-archive-updated'));
   }catch(err){showMessage('恢复失败：'+message(err))}finally{input.value='';state.selection=null}
 }
 document.addEventListener('click',event=>{

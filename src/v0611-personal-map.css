@@ -1,0 +1,35 @@
+/* Tongpin V0.6.11 · single-person journey atlas.
+ * Only augments #v69-crossing, preserving the existing four-person map style. */
+#v69-crossing .v611-tabs{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0 17px;
+  padding:6px;background:#e8e9d9;border:1px solid #b8c6b3;
+}
+#v69-crossing .v611-tabs button{
+  cursor:pointer;border:1px solid transparent;background:transparent;color:#506b57;
+  font:850 clamp(11px,1.2vw,14px)/1.5 system-ui,-apple-system,'Noto Sans SC',sans-serif;
+  padding:13px 9px;min-width:0;min-height:46px;text-align:center;
+}
+#v69-crossing .v611-tabs button[aria-selected="true"]{
+  background:#225240;color:#ffefd0;border-color:#214633;
+  box-shadow:2px 3px 0 #193d322b;
+}
+#v69-crossing .v611-tabs button:focus-visible{
+  outline:3px solid #d2ac65;outline-offset:3px;
+}
+#v69-crossing .v611-personal-summary .v69-summary-cross{
+  background:#e6ebda;border-color:#adbdaa;color:#4e6d56;
+}
+#v69-crossing .v611-personal-summary .v69-summary-cross b{color:#1e4d3a;}
+#v69-crossing .v611-location-hint{
+  display:flex;flex-direction:column;gap:5px;background:#e6ece2;border-left:4px solid #6e9a7a;
+  color:#4c6a56;padding:12px 15px;font-size:11px;line-height:1.75;
+  overflow-wrap:anywhere;margin:10px 0 14px;
+}
+#v69-crossing .v611-location-hint strong{color:#284a37;}
+#v69-crossing .v611-single-memory{grid-template-columns:1fr;}
+#v69-crossing .v611-single-memory .v69-person-memory{max-width:none;}
+#v69-crossing .v611-single-memory .v69-person-memory p{white-space:pre-wrap;}
+@media(max-width:480px){
+  #v69-crossing .v611-tabs{gap:4px;padding:4px;}
+  #v69-crossing .v611-tabs button{font-size:11px;padding:12px 6px;}
+}
