@@ -1,0 +1,13 @@
+同频 V0.6.8 直接覆盖升级包
+============================
+
+1. 先运行单独下载的 SQL：Tongpin_V0.6.8_SQL.sql（Supabase SQL Editor）。
+2. 解压 Tongpin_V0.6.8_Upgrade.zip。
+3. 将解压后的 index.html、package.json、README.md 及 src/ server/ api/ docs/ 文件夹
+   上传至 GitHub 仓库根目录，覆盖同名文件后 Commit。
+4. Vercel 自动部署；无需运行任何脚本，也无需进入 GitHub Actions。
+5. 验收 /#travel、0.6.8 版本标识、原高德搜索、新旅行表单、旧数据和私密权限。
+
+注意：SQL 单独发放，不强制包含在覆盖包内；无需新增任何密钥。
+千万不要重跑旧版 Supabase schema.sql，也不要替换 .env 文件。
+旅行档案请使用旅行页专用 JSON 导出；老版全站 JSON 不含新增旅行日期。

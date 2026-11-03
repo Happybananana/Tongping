@@ -1,0 +1,113 @@
+/* Tongpin V0.6.8 — Journey Archive. Scoped to travel page and its dedicated dialog. */
+#page[data-page="travel"] .v68-archive-wrap{display:flex;flex-direction:column;gap:0}
+#page[data-page="travel"] .v68-archive-wrap .station-panel{margin:9px 0 28px}
+#page[data-page="travel"] .v68-archive-wrap .station-panel:first-child{margin-top:0}
+#page[data-page="travel"] .v68-archive-wrap .v68-wishlist{background:#eff1e5;border-color:#a2b7a5}
+#page[data-page="travel"] .v68-hero-panel{position:absolute;left:clamp(20px,4.5vw,56px);bottom:36px;right:clamp(20px,4.5vw,56px);
+ display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;z-index:2}
+#page[data-page="travel"] #v68-hero-stats{display:flex;gap:15px;align-items:center;flex-wrap:wrap;color:#f3e8c9;font:800 11px/1.5 system-ui,sans-serif}
+#page[data-page="travel"] #v68-hero-stats span{display:inline-flex;align-items:baseline;gap:6px}
+#page[data-page="travel"] #v68-hero-stats b{font:900 25px/1 ui-monospace,monospace;color:#f2d990}
+#page[data-page="travel"] .v68-hero-panel button{border:1px solid #ead89d;background:#eedb9d;color:#123d32;font:900 12px system-ui,sans-serif;padding:12px 17px;cursor:pointer;min-height:44px}
+#page[data-page="travel"] .v68-section-title{display:flex;gap:18px;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap}
+#page[data-page="travel"] .v68-section-title>div>span{font:850 10px ui-monospace,monospace;color:#56715f;letter-spacing:.15em}
+#page[data-page="travel"] .v68-section-title h2{font:850 clamp(29px,4vw,46px)/1.17 "Noto Serif SC","Songti SC",serif;color:#153d31;letter-spacing:-.045em;margin:8px 0}
+#page[data-page="travel"] .v68-section-title p{color:#657d6a;font-size:12px;line-height:1.7;margin:0}
+#page[data-page="travel"] .v68-section-title>b{font:900 12px ui-monospace,monospace;color:#315442;white-space:nowrap}
+#page[data-page="travel"] .v68-main-btn{border:2px solid #214c3b;background:#214c3b;color:#fff7dc;padding:12px 17px;font-weight:850;cursor:pointer;min-height:42px;white-space:nowrap}
+#page[data-page="travel"] .v68-main-btn:hover{background:#32674c}
+#page[data-page="travel"] .v68-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:13px 0 20px;border-top:1px dashed #9cac98;color:#546d5b}
+#page[data-page="travel"] .v68-toolbar label{font-size:11px;font-weight:850;display:flex;align-items:center;gap:8px}
+#page[data-page="travel"] .v68-toolbar select{border:1px solid #a0b7a2;padding:8px;background:#fffdf3;color:#194234;max-width:168px;font-size:12px}
+#page[data-page="travel"] .v68-toolbar>span{font-size:10px;font-weight:850;margin-left:auto}
+#page[data-page="travel"] .v68-year-group{margin:0 0 24px}
+#page[data-page="travel"] .v68-year-group h3{display:flex;align-items:center;gap:12px;margin:0 0 14px;color:#315743}
+#page[data-page="travel"] .v68-year-group h3>span{font:900 23px/1 ui-monospace,monospace}
+#page[data-page="travel"] .v68-year-group h3>i{display:block;flex:1;border-top:1px dashed #a5b7a7}
+#page[data-page="travel"] .v68-year-group h3>small{font:700 10px ui-monospace,monospace;color:#68816f}
+#page[data-page="travel"] .v68-ticket-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#page[data-page="travel"] .v68-ticket{position:relative;display:flex;flex-direction:column;text-align:left;min-width:0;min-height:198px;padding:17px 19px 18px 21px;cursor:pointer;
+ background:linear-gradient(145deg,#f8eed7,#e6dabb);color:#244737;border:1px solid #b0a88b;box-shadow:3px 5px 0 #264a3c28;
+ clip-path:polygon(0 0,100% 0,100% 44%,98.3% 50%,100% 56%,100% 100%,0 100%,0 56%,1.7% 50%,0 44%)}
+#page[data-page="travel"] .v68-ticket:hover{transform:translateY(-3px);box-shadow:5px 8px 0 #264a3c24}
+#page[data-page="travel"] .v68-ticket-head{display:flex;justify-content:space-between;gap:8px;padding-bottom:10px;border-bottom:1px dashed #aeaa8b;max-width:100%}
+#page[data-page="travel"] .v68-ticket-head b,#page[data-page="travel"] .v68-ticket-head small{font:800 9px/1.5 ui-monospace,monospace;color:#7a8068}
+#page[data-page="travel"] .v68-ticket>strong{font:900 clamp(19px,2.4vw,29px) "Noto Serif SC","Songti SC",serif;margin:13px 0 4px;padding-right:83px;overflow-wrap:anywhere}
+#page[data-page="travel"] .v68-ticket-sub{font-size:11px;color:#677d70;overflow-wrap:anywhere}
+#page[data-page="travel"] .v68-ticket-note{display:block;font:500 12px/1.7 system-ui,sans-serif;color:#486151;margin:13px 0;overflow-wrap:anywhere;white-space:normal}
+#page[data-page="travel"] .v68-note-empty{color:#8a8d72;font-size:11px}
+#page[data-page="travel"] .v68-ticket-foot{margin-top:auto;border-top:1px dashed #aeaa8b;padding-top:11px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:10px;color:#536858}
+#page[data-page="travel"] .v68-ticket-foot b{color:#1c4a36;font:900 16px ui-monospace,monospace;white-space:nowrap}
+#page[data-page="travel"] .v68-arrived{position:absolute;right:15px;top:55px;transform:rotate(9deg);font:900 11px ui-monospace,monospace;letter-spacing:.04em;color:#6b806a;border:2px solid #78917b;padding:5px;opacity:.56;pointer-events:none}
+#page[data-page="travel"] .v68-wishlist-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#page[data-page="travel"] .v68-wish-ticket{display:flex;flex-direction:column;align-items:start;text-align:left;min-width:0;min-height:151px;padding:15px;border:1px solid #a7bea9;background:#dfe8d8;color:#224c3a;cursor:pointer}
+#page[data-page="travel"] .v68-wish-ticket:hover{background:#d1e5ce;transform:translateY(-3px)}
+#page[data-page="travel"] .v68-wish-kicker{font:850 9px ui-monospace,monospace;letter-spacing:.1em;color:#61866c}
+#page[data-page="travel"] .v68-wish-ticket strong{font:900 20px "Noto Serif SC",serif;margin:11px 0 4px;overflow-wrap:anywhere}
+#page[data-page="travel"] .v68-wish-ticket small{font-size:11px;color:#577661}
+#page[data-page="travel"] .v68-wish-bottom{width:100%;margin-top:auto;display:flex;justify-content:space-between;gap:4px;border-top:1px dashed #9bb59d;padding-top:9px;font-size:10px}
+#page[data-page="travel"] .v68-wish-bottom b{color:#1e573d}
+#page[data-page="travel"] .v68-pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:16px 0 2px}
+#page[data-page="travel"] .v68-pagination span{font:800 11px ui-monospace,monospace}
+#page[data-page="travel"] .v68-pagination button{border:1px solid #648673;color:#25533d;background:#f4eedc;padding:9px 13px;cursor:pointer}
+#page[data-page="travel"] .v68-pagination button:disabled{opacity:.4;cursor:not-allowed}
+#page[data-page="travel"] .v68-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 0 20px;color:#65826e;font:800 10px ui-monospace,monospace}
+#page[data-page="travel"] .v68-tools span{margin-right:auto}
+#page[data-page="travel"] .v68-tools button{border:1px solid #9cb09d;background:transparent;color:#27513b;padding:8px 11px;cursor:pointer;font:800 11px system-ui,sans-serif}
+#page[data-page="travel"] .v68-tools button:hover{background:#e9eddb}
+#page[data-page="travel"] .v68-empty,#page[data-page="travel"] .v68-loading,#page[data-page="travel"] .v68-error{background:#e7eadd;padding:26px 20px;color:#4f6e58;font-size:12px;line-height:1.8}
+#page[data-page="travel"] .v68-empty button,#page[data-page="travel"] .v68-error button{background:transparent;border:0;font-weight:900;color:#1e5038;cursor:pointer}
+#v068-dialog-root:empty{display:none}
+#v068-dialog-root .v68-modal-shade{position:fixed;inset:0;z-index:25000;background:#051b15c9;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+#v068-dialog-root .v68-modal{width:min(100%,710px);max-height:min(92dvh,850px);overflow:auto;margin:auto;border:2px solid #305241;background:#fffaf0;color:#214c3a;padding:clamp(19px,3vw,30px);box-shadow:9px 10px 0 #06211cb2;font-family:system-ui,-apple-system,"Noto Sans SC",sans-serif}
+#v068-dialog-root .v68-modal-head{display:flex;align-items:start;justify-content:space-between;gap:12px;padding-bottom:15px;border-bottom:1px solid #b2c1ac;margin-bottom:18px}
+#v068-dialog-root .v68-modal-head span{color:#64806c;font:850 10px ui-monospace,monospace;letter-spacing:.12em}
+#v068-dialog-root .v68-modal-head h2{font:900 clamp(21px,4vw,30px) "Noto Serif SC",serif;margin:8px 0 0;color:#204c3b}
+#v068-dialog-root .v68-modal-head button{border:1px solid #b6c8b2;background:#eff1e7;color:#315643;font-size:22px;line-height:1;width:36px;height:36px;cursor:pointer;flex:0 0 auto}
+#v068-dialog-root label{display:flex;flex-direction:column;gap:8px;color:#385842;font-weight:800;font-size:12px}
+#v068-dialog-root input,#v068-dialog-root select,#v068-dialog-root textarea{width:100%;min-width:0;box-sizing:border-box;background:#fffefa;color:#183f31;border:1px solid #a7bea9;border-radius:2px;padding:11px;font:500 14px/1.3 system-ui,sans-serif}
+#v068-dialog-root input:focus,#v068-dialog-root textarea:focus,#v068-dialog-root select:focus{outline:2px solid #b5dcbf;outline-offset:1px}
+#v068-dialog-root textarea{line-height:1.6;resize:vertical}
+#v068-dialog-root .v68-form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+#v068-dialog-root #v68-date-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#v068-dialog-root [hidden]{display:none!important}
+#v068-dialog-root .v68-place-focus{display:flex;gap:15px;padding:12px;background:#e8eddf;margin-bottom:18px;align-items:center}
+#v068-dialog-root .v68-place-focus>span{font-size:27px}
+#v068-dialog-root .v68-place-focus strong{display:block;font-size:20px}
+#v068-dialog-root .v68-place-focus small{display:block;color:#66806d;font-size:11px;margin-top:4px}
+#v068-dialog-root .v68-note-label{margin:16px 0}
+#v068-dialog-root .v68-privacy-hint,#v068-dialog-root .v68-picker-hint{font-size:11px;line-height:1.7;color:#607966}
+#v068-dialog-root .v68-form-actions{display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:18px}
+#v068-dialog-root .v68-form-actions button,#v068-dialog-root .v68-inline-btn{border:1px solid #315a41;background:#21513a;color:#fffceb;padding:11px 14px;cursor:pointer;font-weight:850;font-size:12px;min-height:42px}
+#v068-dialog-root .v68-form-actions button:disabled{opacity:.5;cursor:wait}
+#v068-dialog-root .v68-form-actions .v68-secondary,#v068-dialog-root .v68-inline-btn{background:#fffaf0;color:#27513f}
+#v068-dialog-root .v68-form-actions .v68-danger{background:#f5dcd7;border-color:#ba7a6d;color:#9a3c30;margin-right:auto}
+#v068-dialog-root #v68-form-error{min-height:0;color:#aa3830;font-size:12px;font-weight:750}
+#v068-dialog-root .v68-picker h3{font:850 11px ui-monospace,monospace;letter-spacing:.08em;color:#557360;margin:18px 0 9px}
+#v068-dialog-root .v68-pick-row{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid #b6c9b1;background:#f2f4e9;color:#1e4a36;padding:11px;margin:5px 0;cursor:pointer}
+#v068-dialog-root .v68-pick-row:hover{background:#e6ecd9}
+#v068-dialog-root .v68-pick-row span{display:inline-flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+#v068-dialog-root .v68-pick-row b{font-size:14px}
+#v068-dialog-root .v68-pick-row small{font-size:11px;color:#6f8272}
+#v068-dialog-root .v68-pick-row em{font-style:normal;color:#49765a;white-space:nowrap;font-size:11px}
+#v068-dialog-root .v68-muted{font-size:12px;color:#6d8370;line-height:1.6}
+@media(max-width:760px){
+ #page[data-page="travel"] .railway-hero{min-height:565px}
+ #page[data-page="travel"] .v68-hero-panel{left:17px;right:17px;bottom:23px;gap:10px}
+ #page[data-page="travel"] #v68-hero-stats{gap:9px;font-size:10px}
+ #page[data-page="travel"] #v68-hero-stats b{font-size:19px}
+ #page[data-page="travel"] .v68-hero-panel button{width:100%}
+ #page[data-page="travel"] .v68-ticket-grid{grid-template-columns:1fr}
+ #page[data-page="travel"] .v68-wishlist-grid{grid-template-columns:1fr 1fr}
+ #page[data-page="travel"] .v68-section-title{align-items:start}
+ #page[data-page="travel"] .v68-section-title .v68-main-btn{width:100%}
+ #page[data-page="travel"] .v68-toolbar>span{margin-left:0;width:100%}
+ #v068-dialog-root .v68-modal-shade{padding:7px}
+ #v068-dialog-root .v68-modal{max-height:95dvh;padding:17px}
+}
+@media(max-width:440px){
+ #page[data-page="travel"] .v68-wishlist-grid{grid-template-columns:1fr}
+ #page[data-page="travel"] .v68-ticket>strong{padding-right:68px}
+ #v068-dialog-root .v68-form-row,#v068-dialog-root #v68-date-fields{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){#page[data-page="travel"] .v68-ticket,#page[data-page="travel"] .v68-wish-ticket{transition:none!important;transform:none!important}}

@@ -1,16 +1,25 @@
-# 同频 V0.6.7 · 海报墙评分牌与十分位评分
+# 同频 V0.6.8 · JOURNEY ARCHIVE / 旅途年鉴
 
-基于 V0.6.6 升级。海报墙的个人评分牌采用红/黄/绿三种主色系、
-共六档视觉区分；9.5–10.0 分有双框与菱形标记。游戏与动画统一规则。
+基于现有 GitHub V0.6.7 提供的**直接覆盖升级包**，无需安装脚本、无需 GitHub Actions。
 
-同步把个人评分、CSV/XLSX 批量导入及 JSON 恢复的合法步长从 0.5 调整为 0.1，
-允许 7.6、8.3、9.7 等一位小数。最低评分仍为 0.5，最高为 10.0。
+## 升级顺序（请严格执行）
 
-**在部署新版前，先于现有 Supabase 数据库运行 `supabase/migration_v067.sql`。**
-不要重跑 `supabase/schema.sql`，不要清空数据库。原账号、圈子、收藏、评分、
-隐私规则、第三方 API 和环境变量均沿用。
+1. **先备份 Supabase 项目，并在 SQL Editor 执行单独提供的 `migration_v068.sql`。** 不要重跑 `supabase/schema.sql`。
+2. 解压 `Tongpin_V0.6.8_Upgrade.zip`，在 GitHub 仓库 `main` 的根目录上传同路径文件，覆盖原有 `index.html`、`package.json`、`README.md`，新增 `src/`、`server/`、`api/`、`docs/` 中的对应文件。**不要只上传压缩包。**
+3. 提交更改，等待现有 Vercel 集成重新部署。无需修改 `AMAP_WEB_KEY`，也无需新的环境变量。
+4. 登录网站，确认右上角版本为 `0.6.8`，打开「沿途车站」验收旅行年鉴、想去清单、记录日期与高德搜索。
 
-验证：`npm run test:features && npm run test:search && npm run build`。
+## 功能
 
-详情见 `docs/FEATURES_V067.md`。
-\n## 本升级包的 GitHub 拖入方式\n\n解压后把全部文件（含 `.github/`）拖入仓库根目录并提交。\nGitHub Actions 的 `Tongpin V0.6.7 Auto Upgrade` 会在上传后自动修改源代码、\n运行测试和构建，然后提交至 `main`。你不需要本地运行脚本。\n若 Actions 不允许写入仓库，请先检查仓库 Actions/Workflow 权限。\n详见 `上传说明.txt`。\n
+- 旅行年鉴：按真实到访日期分组、筛选和排序，旧旅行日期为空时明确显示「日期未记」。
+- 旅行记录：到访日期可按年、月、日精度填写；私密优先；0.1 分评分；旅行回忆；状态随时可由想去改为去过。
+- 下一站想去：与已到访车票分开展示，避免强迫未出发的地点评分。
+- 高德搜索：沿用现有 `AMAP_WEB_KEY`；新的记录向导可搜索包含 GCJ-02 坐标的高德地点，供未来交汇地图使用。
+- 旅行档案 JSON 导出/恢复：单独包含日期精度与地点坐标，恢复时默认私密且跳过已有记录；原本的全站 JSON 备份逻辑保持不变。
+- 圈内排行榜、高德原有搜索、游戏与动画模块维持原状。
+
+## 验证
+
+本补丁的新增模块可以在根目录运行 `npm run test:features && npm run test:search && npm run build`。上线后仍须实际验证 Supabase RLS、账号保存、移动端、Vercel API 和高德结果。
+
+完整验收说明见 `docs/FEATURES_V068.md`。
