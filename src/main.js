@@ -13,9 +13,11 @@ import "./v060-flowing-gallery.css";
 import "./v061-collection-pages.css";
 import "./v062-import-flow.css";
 import "./v066-collection-export.css";
+import "./v067-poster-score.css";
 import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
 import {loadCollectionForExport,buildCollectionExportRows,collectionToCsv,collectionToXlsx} from './collectionExport.js';
-import {posterScoreTone,evaluateImportMatch} from "./importLookup.js";
+import {posterScoreTone,posterScoreTier,posterScoreLabel,evaluateImportMatch} from "./importLookup.js";
+import {isValidPersonalRating} from "./scoreBands.js";
 import {prepareImportRow,applyImportDecision,confirmImportCandidate,clearImportCandidate,toggleImportRow,canSelectImportRow,getImportLookupJobs,getImportSelectionSummary,hasConfirmedImportItem,importReviewBucket,orderedImportRowIndices} from "./importSelection.js";
 import {getPersonalStats} from "./personalStats.js";
 import {createImportPacer,searchImportWithRetry,IMPORT_SEARCH_TIMEOUT_MS} from "./importSearchScheduler.js";
@@ -95,7 +97,7 @@ import {coverImageUrl} from './coverUrl.js';
   const own = id => data.records.find(x=>x.userId===ME && x.itemId===id);
   const allShared = () => data.records.filter(x=>x.visibility==='circle');
   const ownRecords = () => data.records.filter(x=>x.userId===ME);
-  const isRated = rec => typeof rec.rating === 'number' && Number.isFinite(rec.rating) && rec.rating>=0.5 && rec.rating<=10;
+  const isRated = rec => isValidPersonalRating(rec?.rating);
   const labelStatus = (category,status) => (STATUS[category]||[]).find(x=>x[0]===status)?.[1]||status;
   const visibleRatings = id => allShared().filter(x=>x.itemId===id && isRated(x));
   function summarize(item) {
@@ -402,8 +404,8 @@ import {coverImageUrl} from './coverUrl.js';
   function posterWall(records){
     const page=paginate(records,view.posterPage,24);view.posterPage=page.page;
     const cards=page.items.map((r,i)=>{const item=itemById(r.itemId);if(!item)return '';const official=item.provider==='bangumi'&&Number(item.bangumiScore)>0?`BGM ${Number(item.bangumiScore).toFixed(1)}`:'';
-      return `<button type="button" class="poster-card" data-action="detail" data-id="${esc(item.id)}" aria-label="打开 ${esc(item.name)}"><span class="poster-art">${cover(item,'poster-cover')}<span class="poster-status">${esc(labelStatus(item.category,r.status))}</span>${isRated(r)?`<span class="poster-score score-${posterScoreTone(r.rating)}" title="我的评分 ${r.rating.toFixed(1)} / 10">${r.rating.toFixed(1)}</span>`:''}</span><span class="poster-info"><strong>${esc(item.name)}</strong><span>${esc(item.year||'年份未详')} · ${esc(CAT_NAME[item.category])}</span><span class="poster-foot">${official?`<b>${official}</b>`:'<b>MY ARCHIVE</b>'}${r.visibility==='private'?'<small>私密记录</small>':'<small>圈内可见</small>'}</span></span></button>`;}).join('');
-    return `<div class="poster-gallery-head"><div><span>POSTER INDEX / ${records.length} TITLES</span><h3>让喜欢的作品，自己说话。</h3><p>个人评分采用分色方框：8–10 绿 / 6–7.5 黄 / 0.5–5.5 红；与 Bangumi 和圈内分数独立。</p></div><span class="poster-count">${String(page.page).padStart(2,'0')} / ${String(page.totalPages).padStart(2,'0')}</span></div><div class="poster-score-guide" aria-label="个人评分颜色说明"><span><i class="g"></i>8–10 推荐</span><span><i class="y"></i>6–7.5 尚可</span><span><i class="r"></i>0.5–5.5 不太喜欢</span></div><div class="poster-wall">${cards}</div>${renderPager('poster',page.page,page.totalPages)}`;
+      return `<button type="button" class="poster-card" data-action="detail" data-id="${esc(item.id)}" aria-label="打开 ${esc(item.name)}"><span class="poster-art">${cover(item,'poster-cover')}<span class="poster-status">${esc(labelStatus(item.category,r.status))}</span>${isRated(r)?`<span class="poster-score score-${posterScoreTone(r.rating)} score-tier-${posterScoreTier(r.rating)}" title="我的评分 ${r.rating.toFixed(1)} / 10 · ${posterScoreLabel(r.rating)}">${r.rating.toFixed(1)}</span>`:''}</span><span class="poster-info"><strong>${esc(item.name)}</strong><span>${esc(item.year||'年份未详')} · ${esc(CAT_NAME[item.category])}</span><span class="poster-foot">${official?`<b>${official}</b>`:'<b>MY ARCHIVE</b>'}${r.visibility==='private'?'<small>私密记录</small>':'<small>圈内可见</small>'}</span></span></button>`;}).join('');
+    return `<div class="poster-gallery-head"><div><span>POSTER INDEX / ${records.length} TITLES</span><h3>让喜欢的作品，自己说话。</h3><p>个人评分采用六档分色牌：低于 7 红 / 7–不足 8 黄 / 8–10 绿（再分四档）；与 Bangumi 和圈内分数独立。</p></div><span class="poster-count">${String(page.page).padStart(2,'0')} / ${String(page.totalPages).padStart(2,'0')}</span></div><div class="poster-score-guide" aria-label="个人评分颜色说明"><span><i class="r"></i>低于 7.0</span><span><i class="y"></i>7.0–7.9</span><span><i class="g"></i>8.0–10.0 · 四级绿色</span></div><div class="poster-wall">${cards}</div>${renderPager('poster',page.page,page.totalPages)}`;
   }
   function personalList(){const mine=filteredPersonalRecords();if(!mine.length)return '<div class="empty-state"><strong>还没有符合条件的磁带</strong><p>去「找片」添加你的第一部作品。</p></div>';
     if(view.personalDisplay==='poster')return posterWall(mine);
@@ -912,7 +914,7 @@ import {coverImageUrl} from './coverUrl.js';
       <div class="record-focus-copy"><span>NOW RECORDING / ${esc(CAT_NAME[cat])}</span><strong>${esc(item.name)}</strong><small>${esc(item.subtitle||'已加入同频共享片库')}</small><em>当前已锁定作品，避免评分错记。</em></div>
     </div>
     <input type="hidden" name="itemId" value="${esc(item.id)}"/>
-    <div class="form-grid"><div class="form-field"><label for="record-status">体验状态</label><select class="form-control" id="record-status" name="status">${selectionOptions(STATUS[cat],rec?.status||'done')}</select></div><div class="form-field"><label for="record-rating">我的评分（可选）</label><input class="form-control" id="record-rating" name="rating" type="number" inputmode="decimal" placeholder="暂不评分" step="0.5" min="0.5" max="10" value="${rec&&isRated(rec)?rec.rating:''}"/></div></div>
+    <div class="form-grid"><div class="form-field"><label for="record-status">体验状态</label><select class="form-control" id="record-status" name="status">${selectionOptions(STATUS[cat],rec?.status||'done')}</select></div><div class="form-field"><label for="record-rating">我的评分（可选）</label><input class="form-control" id="record-rating" name="rating" type="number" inputmode="decimal" placeholder="暂不评分" step="0.1" min="0.5" max="10" value="${rec&&isRated(rec)?rec.rating:''}"/></div></div>
     <div class="form-field"><label for="record-note">简短评价（可选）</label><textarea class="form-control" id="record-note" name="note" maxlength="2000" placeholder="你的真实感受，几句话就够了…">${esc(rec?.note||'')}</textarea><label class="spoiler-switch"><input type="checkbox" name="spoiler" ${rec?.spoiler?'checked':''}/> 这条短评包含剧透，默认隐藏</label></div><div class="form-field"><label for="record-visibility">可见范围</label><select class="form-control" id="record-visibility" name="visibility">${selectionOptions([['circle','👥 圈内可见'],['private','🔒 仅自己可见']],rec?.visibility||'circle')}</select></div>
     <div class="modal-actions">${rec?'<button type="button" class="btn-ghost danger" data-action="delete" data-id="'+esc(rec.itemId)+'">删除记录</button>':''}<button class="btn-ghost" type="button" data-action="close">取消</button><button class="primary-btn" type="submit">保存记录</button></div></form>`);
   }
@@ -1108,7 +1110,7 @@ import {coverImageUrl} from './coverUrl.js';
         const item=itemById(String(f.get('itemId')));
         if(!item)throw Error('请先创建或选择条目');
         const raw=String(f.get('rating')||'').trim();const rating=raw===''?null:Number(raw);
-        if(rating!==null&&(!Number.isFinite(rating)||rating<.5||rating>10||rating*2!==Math.round(rating*2)))throw Error('评分需要在 0.5～10 之间，步长为 0.5');
+        if(rating!==null&&!isValidPersonalRating(rating))throw Error('评分需要在 0.5～10 之间，步长为 0.1');
         const status=String(f.get('status'));
         if(!STATUS[item.category].some(x=>x[0]===status))throw Error('请选择正确的体验状态');
         await saveExperience({itemId:item.id,status,rating,note:String(f.get('note')||'').trim().slice(0,2000),visibility:f.get('visibility')==='private'?'private':'circle',spoiler:f.has('spoiler')});
@@ -1174,7 +1176,7 @@ import {coverImageUrl} from './coverUrl.js';
         const item=data.items.find(x=>x.id===alias.get(r.itemId)||x.providerItemId===r.itemId||x.id===r.itemId);
         if(!item||own(item.id)){skipped++;continue}
         const rating=r.rating==null?null:Number(r.rating);
-        if(rating!==null&&(!Number.isFinite(rating)||rating<0.5||rating>10||rating*2!==Math.round(rating*2))){skipped++;continue}
+        if(rating!==null&&!isValidPersonalRating(rating)){skipped++;continue}
         const status=(STATUS[item.category]||[]).some(x=>x[0]===r.status)?r.status:'want';
         const {error}=await db.from('experiences').insert({user_id:ME,item_id:item.id,circle_id:null,visibility:'private',rating,status,note:r.note.slice(0,2000),spoiler:!!r.spoiler});
         if(error){skipped++;continue}count++;

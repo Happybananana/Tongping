@@ -1,3 +1,4 @@
+import {isValidPersonalRating} from './scoreBands.js';
 // Browser-safe spreadsheet import: no network calls while parsing, no formula evaluation.
 export const MAX_SHEET_BYTES = 2 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 300;
@@ -53,7 +54,7 @@ export function normalizeStatus(raw,category='anime'){
 export function validateScore(raw){
   if(raw==null||String(raw).trim()==='')return null;
   const n=Number(String(raw).trim());
-  if(!Number.isFinite(n)||n<0.5||n>10||Math.abs(n*2-Math.round(n*2))>.00001)throw Error('评分须为 0.5～10，步长 0.5');
+  if(!isValidPersonalRating(n))throw Error('评分须为 0.5～10，步长 0.1');
   return n;
 }
 export function parseImportRows(grid,{fallbackCategory='anime',maxRows=MAX_IMPORT_ROWS}={}){

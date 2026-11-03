@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {posterScoreTone,rankImportCandidates,scoreImportCandidate,evaluateImportMatch} from './importLookup.js';
 test('poster colors use the personal 0.5–10 scale',()=>{
-  for(const [score,tone] of [[10,'positive'],[8,'positive'],[7.5,'mixed'],[6,'mixed'],[5.5,'negative'],[.5,'negative'],[null,'unrated'],['abc','unrated']])assert.equal(posterScoreTone(score),tone);
+  for(const [score,tone] of [[10,'positive'],[8,'positive'],[7.5,'mixed'],[7,'mixed'],[6.9,'negative'],[6,'negative'],[5.5,'negative'],[.5,'negative'],[null,'unrated'],['abc','unrated']])assert.equal(posterScoreTone(score),tone);
 });
 test('category and title are prerequisites for candidates',()=>{
   const row={name:'葬送的芙莉莲',subtitle:'Frieren',category:'anime',year:'2023'};

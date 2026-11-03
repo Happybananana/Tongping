@@ -1,11 +1,7 @@
 // Source-agnostic match helpers. Only unambiguous exact matches can be approved automatically.
 import {normalizedName} from './sheetImport.js';
+export {posterScoreTone,posterScoreTier,posterScoreLabel} from './scoreBands.js';
 
-export function posterScoreTone(score){
-  const value=Number(score);
-  if(!Number.isFinite(value)||value<0.5||value>10)return 'unrated';
-  return value>=8?'positive':value>=6?'mixed':'negative';
-}
 const yearOf=value=>{const year=String(value||'').trim().slice(0,4);return /^\d{4}$/.test(year)?year:'';};
 const titlesOf=value=>[value?.name,value?.subtitle].map(normalizedName).filter(Boolean);
 const exactTitle=(row,item)=>titlesOf(row).some(a=>titlesOf(item).includes(a));

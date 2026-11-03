@@ -63,3 +63,12 @@ test('partial/unreadable catalogue never creates a misleading complete export',a
   }};
   await assert.rejects(loadCollectionForExport(db,'me'),/作品资料无法读取/);
 });
+
+
+test('export preserves 0.1-increment decimal ratings through CSV import',()=>{
+  const rows=buildCollectionExportRows({items:[{id:'x',category:'game',name:'示例游戏'}],
+    records:[{userId:'me',itemId:'x',rating:7.6,status:'done',note:'',updatedAt:'2026-11-03'}],userId:'me'});
+  assert.equal(rows[0][2],7.6);
+  const imported=parseImportRows(parseCsv(collectionToCsv(rows)));
+  assert.equal(imported.rows[0].rating,7.6);
+});

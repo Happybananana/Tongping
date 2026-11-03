@@ -60,7 +60,7 @@ create table if not exists public.experiences (
   item_id uuid not null references public.catalog_items(id) on delete cascade,
   circle_id uuid references public.circles(id) on delete set null,
   status text not null check (status in ('want','doing','done','paused')),
-  rating numeric(3,1) check (rating is null or (rating between 0.5 and 10 and rating*2=trunc(rating*2))),
+  rating numeric(3,1) check (rating is null or (rating between 0.5 and 10 and rating*10=trunc(rating*10))),
   note text not null default '' check (char_length(note)<=2000),
   spoiler boolean not null default false,
   visibility text not null check (visibility in ('circle','private')),

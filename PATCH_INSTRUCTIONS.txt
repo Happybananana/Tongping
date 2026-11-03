@@ -1,1 +1,1 @@
-同频 V0.6.3 仅用于从 V0.6.2 升级。将本压缩包内的 src、docs 文件夹及 package.json / README.md 按原目录覆盖 GitHub 同名文件。无需 Supabase SQL 或新环境变量。
+同频 V0.6.7：从 V0.6.6 升级。先在已有 Supabase 数据库执行 supabase/migration_v067.sql，然后覆盖同路径源码并运行测试构建。本版本将评分步长改为 0.1；不要重跑 schema.sql。
