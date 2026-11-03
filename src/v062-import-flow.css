@@ -9,3 +9,14 @@
 /* V0.6.4: explain temporary retries rather than reporting them as missing works. */
 .sheet-retry-note{display:block;color:#82652e;background:#fff1cf;border-left:3px solid #dba954;padding:6px 8px;margin:5px 0;font-size:11px;line-height:1.45}
 body.theme-archive .sheet-retry-note{background:#f4efe0;color:#516653;border-left-color:#93a88b}
+
+/* V0.6.5: import review triage filters */
+.sheet-review-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:15px 0 9px}
+.sheet-review-filter{border:1px solid #b7bdb2;background:#fcfbf6;color:#34463e;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:750;cursor:pointer}
+.sheet-review-filter.active{background:#274a3d;color:#fff;border-color:#274a3d}
+.sheet-review-filter b{font-weight:900;margin-left:4px}
+.sheet-review-controls small{font-size:11px;color:#7b827e;flex:1 0 180px}
+.sheet-table-scroll tr[hidden]{display:none!important}
+.delete-catalog-btn{border-color:#d7aaa5!important;color:#9d403b!important}
+.delete-catalog-btn:hover{background:#fff0ee!important}
+@media(max-width:600px){.sheet-review-controls{gap:6px}.sheet-review-filter{padding:8px 9px;font-size:11px}}

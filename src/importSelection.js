@@ -90,3 +90,17 @@ export function getImportSelectionSummary(rows){
     pending:eligible.filter(row=>row.lookupState==='queued').length
   };
 }
+
+/** Review filter is independent from whether an item will be imported. */
+export function importReviewBucket(row){
+  if(!row || row.error)return 'invalid';
+  if(row.match || row.remoteChoice)return 'matched';
+  if(row.lookupState==='done')return row.suggestions?.length?'review':'missing';
+  if(row.lookupState==='error')return 'missing';
+  return 'searching';
+}
+export function orderedImportRowIndices(rows){
+  const weight={review:0,searching:1,matched:2,missing:3,invalid:4};
+  return (rows||[]).map((row,i)=>({i,rank:weight[importReviewBucket(row)]??5}))
+    .sort((a,b)=>a.rank-b.rank||a.i-b.i).map(x=>x.i);
+}

@@ -14,7 +14,7 @@ import "./v061-collection-pages.css";
 import "./v062-import-flow.css";
 import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
 import {posterScoreTone,evaluateImportMatch} from "./importLookup.js";
-import {prepareImportRow,applyImportDecision,confirmImportCandidate,clearImportCandidate,toggleImportRow,canSelectImportRow,getImportLookupJobs,getImportSelectionSummary,hasConfirmedImportItem} from "./importSelection.js";
+import {prepareImportRow,applyImportDecision,confirmImportCandidate,clearImportCandidate,toggleImportRow,canSelectImportRow,getImportLookupJobs,getImportSelectionSummary,hasConfirmedImportItem,importReviewBucket,orderedImportRowIndices} from "./importSelection.js";
 import {getPersonalStats} from "./personalStats.js";
 import {createImportPacer,searchImportWithRetry,IMPORT_SEARCH_TIMEOUT_MS} from "./importSearchScheduler.js";
 import {findPostSubjects} from "./postSearch.js";
@@ -530,15 +530,44 @@ import {coverImageUrl} from './coverUrl.js';
   async function previewSheetFile(input){const file=input.files?.[0];if(!file)return;bulkDraft?.abortController?.abort();const serial=++sheetLookupSerial;try{
     $('sheet-preview').textContent='正在解析表格与匹配共享作品…';const grid=await readSheetFile(file);
     if(serial!==sheetLookupSerial||!$('sheet-preview'))return;
-    bulkDraft={...parseImportRows(grid,{fallbackCategory:$('sheet-category')?.value||'anime'}),paused:false,lookingUp:false,abortController:new AbortController()};
+    bulkDraft={...parseImportRows(grid,{fallbackCategory:$('sheet-category')?.value||'anime'}),paused:false,lookingUp:false,reviewFilter:'all',abortController:new AbortController()};
     const seen=new Set();for(const row of bulkDraft.rows){const key=row.category+':'+normalizedName(row.name)+':'+String(row.year||'')+':'+String(row.providerId||'');row.match=matchedImportItem(row);row.suggestions=[];row.remoteChoice=null;row.autoChosen=false;row.lookupState=row.match?'matched':'queued';if(seen.has(key)){row.error='表格内重复作品';}seen.add(key);if(row.match&&own(row.match.id)){row.error='已有个人记录，不会覆盖';}prepareImportRow(row);}
-    const rows=bulkDraft.rows.map((r,i)=>`<tr><td><input type="checkbox" id="sheet-check-${i}" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${canSelectImportRow(r)?'':'disabled'} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}${r.year?' · '+esc(r.year):''}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td id="sheet-match-${i}">${sheetMatchDescription(r,i)}</td></tr>`).join('');
-    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>自动搜索全部未匹配作品（即使尚未勾选），最多同时 2 个请求、每分钟约 18 次；遇限流/临时网络错误自动重试。默认仅勾选共享库匹配、高置信度自动匹配及手动确认候选；其余留待审核。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-toggle" id="sheet-lookup-toggle">暂停搜索</button></div><div class="sheet-lookup-progress"><progress id="sheet-lookup-progress" value="0" max="1"></progress><span id="sheet-lookup-detail" aria-live="polite"></span></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 可选：允许手动勾选未匹配作品并按表格名称建档（默认不选，不自动创建）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
+    const rows=bulkDraft.rows.map((r,i)=>`<tr data-sheet-row="${i}"><td><input type="checkbox" id="sheet-check-${i}" data-action="bulk-row-toggle" data-row="${i}" ${r.selected?'checked':''} ${canSelectImportRow(r)?'':'disabled'} aria-label="选择第${r.line}行"/></td><td>${r.line}</td><td><strong>${esc(r.name)}</strong><small>${esc(CAT_NAME[r.category])}${r.year?' · '+esc(r.year):''}</small></td><td>${r.rating==null?'—':r.rating.toFixed(1)}</td><td id="sheet-match-${i}">${sheetMatchDescription(r,i)}</td></tr>`).join('');
+    $('sheet-preview').innerHTML=`<div class="sheet-summary" id="sheet-summary" role="status"></div><div class="sheet-online-bar"><div><strong>联网自动找片</strong><span>自动搜索全部未匹配作品（即使尚未勾选），最多同时 2 个请求、每分钟约 25 次；遇限流/临时网络错误自动重试。默认仅勾选共享库匹配、高置信度自动匹配及手动确认候选；其余留待审核。</span></div><button type="button" class="btn-ghost" data-action="sheet-lookup-toggle" id="sheet-lookup-toggle">暂停搜索</button></div><div class="sheet-lookup-progress"><progress id="sheet-lookup-progress" value="0" max="1"></progress><span id="sheet-lookup-detail" aria-live="polite"></span></div><div class="sheet-review-controls" role="group" aria-label="导入结果筛选"><button type="button" class="sheet-review-filter active" data-action="sheet-review-filter" data-filter="all" aria-pressed="true">全部</button><button type="button" class="sheet-review-filter" data-action="sheet-review-filter" data-filter="review" aria-pressed="false">只看待审核 <b id="sheet-review-count">0</b></button><button type="button" class="sheet-review-filter" data-action="sheet-review-filter" data-filter="missing" aria-pressed="false">无结果 / 失败 <b id="sheet-missing-count">0</b></button><small>搜索完成后自动按「待审核 → 已匹配 → 无结果」排序。</small></div><div class="sheet-table-scroll"><table><thead><tr><th>选</th><th>行</th><th>作品</th><th>我的评分</th><th>匹配情况 / 候选选择</th></tr></thead><tbody>${rows}</tbody></table></div><label class="sheet-opt"><input id="sheet-create-missing" type="checkbox"/> 可选：允许手动勾选未匹配作品并按表格名称建档（默认不选，不自动创建）</label><label class="sheet-opt"><input id="sheet-share" type="checkbox"/> 将导入记录公开给圈内伙伴（默认仅自己可见）</label><div class="modal-actions"><button class="btn-ghost" data-action="close">取消</button><button class="primary-btn" data-action="confirm-sheet" id="sheet-confirm">确认导入已选条目</button></div>`;
     updateSheetSummary();void autoFindSheetMatches(serial);
   }catch(e){if(serial!==sheetLookupSerial)return;bulkDraft=null;if($('sheet-preview'))$('sheet-preview').textContent='解析失败：'+String(e.message||e)}}
+  function syncSheetReviewView(){
+    if(!bulkDraft)return;
+    const rows=bulkDraft.rows,filter=bulkDraft.reviewFilter||'all';
+    const tbody=document.querySelector('.sheet-table-scroll tbody');
+    if(tbody){
+      // Preserve stable row ids for async lookup results and candidate selection.
+      // Reorder only after all search workers have finished; avoid jumping controls mid-review.
+      if(!bulkDraft.lookingUp && !rows.some(r=>r.lookupState==='queued'||r.lookupState==='loading'||r.lookupState==='retrying')){
+        for(const index of orderedImportRowIndices(rows)){
+          const tr=tbody.querySelector(`[data-sheet-row="${index}"]`);
+          if(tr)tbody.appendChild(tr);
+        }
+      }
+      for(let index=0;index<rows.length;index++){
+        const tr=tbody.querySelector(`[data-sheet-row="${index}"]`);
+        if(tr)tr.hidden=filter!=='all'&&importReviewBucket(rows[index])!==filter;
+      }
+    }
+    const review=rows.filter(r=>importReviewBucket(r)==='review').length;
+    const missing=rows.filter(r=>importReviewBucket(r)==='missing').length;
+    if($('sheet-review-count'))$('sheet-review-count').textContent=String(review);
+    if($('sheet-missing-count'))$('sheet-missing-count').textContent=String(missing);
+    document.querySelectorAll('.sheet-review-filter').forEach(button=>{
+      const selected=button.dataset.filter===filter;
+      button.classList.toggle('active',selected);
+      button.setAttribute('aria-pressed',String(selected));
+    });
+  }
   function updateSheetSummary(){
     const el=$('sheet-summary');if(!el||!bulkDraft)return;
     const draft=bulkDraft,info=getImportSelectionSummary(draft.rows);
+    syncSheetReviewView();
     el.textContent=`识别 ${info.total} 条 · 默认/已选 ${info.selected} 条 · 共享库 ${info.local} 条 · 高置信度 ${info.auto} 条 · 人工确认 ${info.reviewed} 条 · 待审核 ${info.pendingReview} 条 · 无结果 ${info.noResults} 条`;
     const progress=$('sheet-lookup-progress');if(progress){progress.max=Math.max(1,info.searchTotal);progress.value=Math.min(info.finished,info.searchTotal)}
     const detail=$('sheet-lookup-detail');if(detail)detail.textContent=`已搜索 ${info.finished}/${info.searchTotal} · 失败 ${info.failed} · ${draft.paused?'已暂停':draft.lookingUp?'正在自动匹配…':info.pending?'等待开始…':'搜索完成'}`;
@@ -646,7 +675,7 @@ import {coverImageUrl} from './coverUrl.js';
   }
 
   const unwrap=(result)=>{if(result.error)throw result.error;return result.data};
-  function mapCatalog(i){return {id:i.id,category:i.category,name:i.name,subtitle:i.subtitle||'',description:i.description||'',coverUrl:i.cover_url||'',sourceUrl:i.source_url||'',wikiTitle:i.wiki_title||'',emoji:i.emoji||CAT_EMOJI[i.category],year:i.year||'',tags:i.tags||[],provider:i.provider||null,providerItemId:i.provider_item_id||null,platform:i.bangumi_platform||'',bangumiScore:i.bangumi_score==null?null:Number(i.bangumi_score),bangumiRatingTotal:i.bangumi_rating_total??null,bangumiRank:i.bangumi_rank??null,...(detailMetadata.get(i.id)||{})}};
+  function mapCatalog(i){return {id:i.id,createdBy:i.created_by||null,circleId:i.circle_id||null,category:i.category,name:i.name,subtitle:i.subtitle||'',description:i.description||'',coverUrl:i.cover_url||'',sourceUrl:i.source_url||'',wikiTitle:i.wiki_title||'',emoji:i.emoji||CAT_EMOJI[i.category],year:i.year||'',tags:i.tags||[],provider:i.provider||null,providerItemId:i.provider_item_id||null,platform:i.bangumi_platform||'',bangumiScore:i.bangumi_score==null?null:Number(i.bangumi_score),bangumiRatingTotal:i.bangumi_rating_total??null,bangumiRank:i.bangumi_rank??null,...(detailMetadata.get(i.id)||{})}};
   function mapExperience(r){return {id:r.id,userId:r.user_id,itemId:r.item_id,rating:r.rating==null?null:Number(r.rating),status:r.status,note:r.note||'',spoiler:!!r.spoiler,visibility:r.visibility,updatedAt:r.updated_at}};
 
   let refreshTimer=null;
@@ -719,6 +748,25 @@ import {coverImageUrl} from './coverUrl.js';
       unwrap(await db.from('experiences').delete().eq('user_id',ME).eq('item_id',itemId));
       closeModal();await refreshAll(false);toast('记录已从云端删除');
     }catch(error){toast('删除失败：'+displayError(error))}
+  }
+  async function deleteUnusedCatalogItem(itemId){
+    if(isBusy||!ME||!activeCircle)return;
+    const item=itemById(itemId);
+    if(!item||item.createdBy!==ME||item.circleId!==activeCircle.id){toast('只能删除本人创建的圈内条目');return}
+    if(!confirm(`确定永久删除共享作品《${item.name}》？\n只有无人收藏、无人评分且没有关联帖子时才能删除。此操作不能撤销。`))return;
+    isBusy=true;
+    try{
+      // SECURITY DEFINER RPC checks all experiences (including private) and posts
+      // transactionally; never trust the currently visible ratings in the client.
+      const {data:deleted,error}=await db.rpc('delete_unused_catalog_item',{p_item_id:itemId});
+      if(error)throw error;
+      if(deleted!==true)throw Error('数据库未确认删除，操作已取消');
+      data.items=data.items.filter(x=>x.id!==itemId);
+      location.hash='discover';syncRoute();
+      toast('空条目已从共享作品库删除');
+      await refreshAll(false);
+    }catch(e){toast('无法删除：'+displayError(e))}
+    finally{isBusy=false}
   }
   async function createCatalogItem(item){
     const {data:inserted,error}=await db.from('catalog_items').insert({
@@ -889,7 +937,7 @@ import {coverImageUrl} from './coverUrl.js';
           <h1>${esc(item.name)}</h1><div class="detail-original">${esc(item.subtitle||'')}</div>
           <p class="detail-description">${esc(item.description||'每个人的体验都不同。记录自己的感受，也来看看朋友的评价。')}</p>
           <div class="detail-pills">${tags}</div>
-          <div class="detail-hero-actions"><button class="primary-btn" data-action="record" data-id="${esc(item.id)}">${myRecord?'✎ 编辑我的体验':'＋ 记录我的体验'}</button>${source?`<a class="btn-ghost detail-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer">查看资料来源 ↗</a>`:''}</div>
+          <div class="detail-hero-actions"><button class="primary-btn" data-action="record" data-id="${esc(item.id)}">${myRecord?'✎ 编辑我的体验':'＋ 记录我的体验'}</button>${source?`<a class="btn-ghost detail-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer">查看资料来源 ↗</a>`:''}${item.createdBy===ME&&item.circleId===activeCircle?.id?`<button type="button" class="btn-ghost danger delete-catalog-btn" data-action="delete-catalog-item" data-id="${esc(item.id)}" title="仅当无人收藏、评分或发帖时可删除">删除空条目</button>`:''}</div>
         </div>
       </section>
       ${item.provider==='bangumi'?`<div class="official-score-note panel"><div><span class="eyebrow">FROM BANGUMI · 社区参考</span><div class="official-score-title">Bangumi 评分 ${item.platform?`<span class="kind-chip">${esc(item.platform)}</span>`:''}</div><small>来自 Bangumi 社区的独立评分，不参与「同频」圈子榜单</small></div><div class="official-score-value">${item.bangumiScore!=null?Number(item.bangumiScore).toFixed(2):'—'}<span> / 10</span><small>${item.bangumiRatingTotal!=null?item.bangumiRatingTotal.toLocaleString('zh-CN')+' 人评分':'资料更新中或暂无评分'}${item.bangumiRank?' · 排名 #'+item.bangumiRank:''}</small></div></div>`:''}
@@ -932,6 +980,7 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='delete-post')void deletePost(target.dataset.id);
     else if(action==='delete-comment')void deleteComment(target.dataset.id);
     else if(action==='sheet-import')sheetDialog();
+    else if(action==='sheet-review-filter'){if(bulkDraft){bulkDraft.reviewFilter=['all','review','missing'].includes(target.dataset.filter)?target.dataset.filter:'all';updateSheetSummary()}}
     else if(action==='confirm-sheet')void confirmSheetImport();
     else if(action==='sheet-lookup-toggle'){if(bulkDraft){bulkDraft.paused=!bulkDraft.paused;updateSheetSummary();if(!bulkDraft.paused)void autoFindSheetMatches()}}
     else if(action==='sheet-select-candidate'){const i=Number(target.dataset.row),j=Number(target.dataset.candidate),row=bulkDraft?.rows?.[i];if(confirmImportCandidate(row,row?.suggestions?.[j]))updateSheetRow(i)}
@@ -967,6 +1016,7 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='rank-category'){view.rankCategory=target.dataset.category;view.rankPage=1;render()}
     else if(action==='personal-category'){view.personalCategory=target.dataset.category;view.posterPage=1;render()}
     else if(action==='personal-display'){view.personalDisplay=['shelf','list','poster'].includes(target.dataset.display)?target.dataset.display:'shelf';try{localStorage.setItem('tongpin:archive-display',view.personalDisplay)}catch(_){}render()}
+    else if(action==='delete-catalog-item')void deleteUnusedCatalogItem(target.dataset.id);
     else if(action==='delete'){if(confirm('确认从云端删除自己的这条记录？'))deleteExperience(target.dataset.id)}
     else if(action==='refresh')refreshAll(true)
     else if(action==='logout')logout()

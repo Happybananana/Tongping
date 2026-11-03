@@ -14,7 +14,7 @@ test('pacer limits consecutive launch intervals under per-user 30/min budget',as
  const v=virtual(),pacer=createImportPacer({now:v.now,wait:v.wait});
  const launches=[];for(let i=0;i<35;i++){assert.equal(await pacer.takeTurn(),true);launches.push(v.time)}
  for(let i=1;i<launches.length;i++)assert.ok(launches[i]-launches[i-1]>=IMPORT_SEARCH_INTERVAL_MS);
- assert.ok(launches.filter(t=>t-launches[0]<60000).length<=18);
+ assert.ok(launches.filter(t=>t-launches[0]<60000).length<=25);
 });
 test('a 429 pauses the entire pacer and retries without losing the row',async()=>{
  const v=virtual(),pacer=createImportPacer({now:v.now,wait:v.wait});

@@ -1,5 +1,5 @@
 /** Batch search pacing/retry logic. No dependency on the DOM or Supabase. */
-export const IMPORT_SEARCH_INTERVAL_MS = 3400; // 17.6 launches/min, leaving room under 30/min server budget.
+export const IMPORT_SEARCH_INTERVAL_MS = 2400; // 25 launches/min, with 5/min headroom below the 30/min API limit.
 export const IMPORT_SEARCH_TIMEOUT_MS = 32_000;
 export const IMPORT_SEARCH_ATTEMPTS = 3;
 
