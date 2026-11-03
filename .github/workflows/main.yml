@@ -1,0 +1,46 @@
+name: "Tongpin V0.6.7 Auto Upgrade"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/tongpin-v067.yml"
+      - ".github/scripts/apply_v067.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-v067:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Apply V0.6.7 changes to the actual source files
+        run: python3 .github/scripts/apply_v067.py
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run feature tests
+        run: npm run test:features
+      - name: Run search tests
+        run: npm run test:search
+      - name: Build
+        run: npm run build
+      - name: Commit updated source files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main.js src/importLookup.js src/sheetImport.js src/importLookup.test.mjs src/sheetImport.test.mjs src/collectionExport.test.mjs supabase/schema.sql index.html package.json PATCH_INSTRUCTIONS.txt UPGRADE.txt
+          if git diff --cached --quiet; then
+            echo "No upgrade changes to commit"
+          else
+            git commit -m "feat: release Tongpin V0.6.7 poster score tiers"
+            git push origin HEAD:main
+          fi
