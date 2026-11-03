@@ -1,13 +1,18 @@
-同频 V0.6.8 直接覆盖升级包
-============================
+同频 V0.6.9 · 直接拖入 GitHub 升级包
+=====================================
 
-1. 先运行单独下载的 SQL：Tongpin_V0.6.8_SQL.sql（Supabase SQL Editor）。
-2. 解压 Tongpin_V0.6.8_Upgrade.zip。
-3. 将解压后的 index.html、package.json、README.md 及 src/ server/ api/ docs/ 文件夹
-   上传至 GitHub 仓库根目录，覆盖同名文件后 Commit。
-4. Vercel 自动部署；无需运行任何脚本，也无需进入 GitHub Actions。
-5. 验收 /#travel、0.6.8 版本标识、原高德搜索、新旅行表单、旧数据和私密权限。
+第一步：备份 Supabase 数据库。在 Supabase SQL Editor 执行单独提供的 Tongpin_V0.6.9_SQL.sql。
+这个 SQL 文件已经包含 V0.6.8 和 V0.6.9 的可重复执行增量迁移；无论你当前是 V0.6.7 还是 V0.6.8，均只需要执行这一个 SQL。
 
-注意：SQL 单独发放，不强制包含在覆盖包内；无需新增任何密钥。
-千万不要重跑旧版 Supabase schema.sql，也不要替换 .env 文件。
-旅行档案请使用旅行页专用 JSON 导出；老版全站 JSON 不含新增旅行日期。
+第二步：解压此 ZIP，将内部 index.html、package.json、README.md 和 src/、api/、server/、docs/ 等目录直接拖进 GitHub 仓库根目录。
+覆盖同名文件、提交更新。不需要运行任何 Python 脚本，也不需要 GitHub Actions。
+
+第三步：Vercel 现有 GitHub 集成自动部署，页面右上角应该显示 0.6.9。
+
+第四步：请用两个同一好友圈中的账号测试。各自到「沿途车站 → 轨迹交汇」开启分享，
+并设置至少一个「已去过 + 圈内可见 + 带坐标」的地点。选择好友即可看到历史轨迹和交汇站。
+
+注意：旧地点如果没有保存坐标，地图不显示该地点，但旅行车票仍在年鉴中；
+无需申请任何新的地图 Key；高德 AMAP_WEB_KEY 保持原样。
+
+不能通过网页直接核实的项目：真实 Supabase 双账号 RLS 验证、Vercel 完整部署、地图手机端实际效果。

@@ -1,0 +1,135 @@
+/* Tongpin V0.6.9 · WHERE WE CROSS. Scoped to #v69-crossing.
+   Follows the existing Railways: deep forest / parchment / warm brass.
+   Map background is local Natural Earth geography (public domain), not remote tile APIs. */
+#v69-crossing{--v69-forest:#173c32;--v69-gold:#ebd18c;--v69-mint:#8ee2bd;--v69-text:#213e33;
+  background:linear-gradient(165deg,#f8f4e8,#eee9d7)!important;border:1px solid #a9bdad!important;
+  box-shadow:7px 9px 0 #16382e2d!important;border-radius:5px!important;padding:clamp(18px,3.7vw,35px)!important;
+  overflow:hidden;}
+#v69-crossing .v69-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:18px;
+  border-bottom:1px solid #a8bcab;}
+#v69-crossing .v69-eyebrow{display:block;color:#597365;font:850 10px/1.5 ui-monospace,monospace;letter-spacing:.17em;}
+#v69-crossing .v69-heading h2{margin:12px 0 9px;color:#193e34;letter-spacing:-.055em;
+  font:850 clamp(26px,3.8vw,43px)/1.28 'Noto Serif SC','Songti SC',serif;}
+#v69-crossing .v69-heading em{font-style:normal;color:#608c6c;}
+#v69-crossing .v69-heading p{margin:0;font-size:12px;color:#667b6c;line-height:1.85;}
+#v69-crossing .v69-seal{display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;
+  width:84px;height:84px;min-width:84px;transform:rotate(9deg);border:2px solid #a18c61;border-radius:50%;
+  color:#93754e;font-size:28px;font-weight:900;}
+#v69-crossing .v69-seal small{text-align:center;font:850 8px/1.3 ui-monospace,monospace;letter-spacing:.1em;}
+#v69-crossing .v69-controls{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr);gap:14px;
+  align-items:stretch;margin:19px 0 10px;}
+#v69-crossing .v69-share-switch{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#e2e9db;
+  border:1px solid #a8bcaa;cursor:pointer;min-width:0;}
+#v69-crossing .v69-share-switch input{position:absolute;opacity:0;width:1px;height:1px;}
+#v69-crossing .v69-switch-visual{display:block;position:relative;flex:none;width:45px;height:27px;background:#a7b5a5;
+  border:1px solid #6c8676;border-radius:20px;transition:background .2s;}
+#v69-crossing .v69-switch-visual:after{content:'';position:absolute;width:19px;height:19px;background:#fff;
+  border-radius:50%;top:3px;left:3px;box-shadow:0 1px 2px #1f39273f;transition:transform .2s;}
+#v69-crossing .v69-share-switch input:checked + .v69-switch-visual{background:#26664f;}
+#v69-crossing .v69-share-switch input:checked + .v69-switch-visual:after{transform:translateX(18px);}
+#v69-crossing .v69-share-switch input:focus-visible + .v69-switch-visual{outline:3px solid #d6a74e;outline-offset:3px;}
+#v69-crossing .v69-share-switch span:last-child{display:grid;gap:5px;min-width:0;}
+#v69-crossing .v69-share-switch b{font-size:12px;color:#214435;}
+#v69-crossing .v69-share-switch small{font-size:10px;color:#6b7f70;line-height:1.5;}
+#v69-crossing .v69-peer{display:flex;gap:8px;align-items:center;border:1px solid #afbfaf;padding:11px 12px;background:#f7f5eb;}
+#v69-crossing .v69-peer label{font-size:11px;color:#52705d;white-space:nowrap;font-weight:850;}
+#v69-crossing select{flex:1;min-width:0;border:1px solid #9eb1a3;background:#fffdf4;color:#1b4332;
+  padding:9px 7px;font-size:12px;font-weight:800;}
+#v69-crossing .v69-peer button{padding:9px 11px;border:1px solid #90a595;background:#e7efdf;color:#20503c;cursor:pointer;}
+#v69-crossing .v69-privacy-note{font-size:10px;line-height:1.7;color:#6c7f70;margin:5px 0 20px;}
+#v69-crossing .v69-loading,#v69-crossing .v69-no-data,#v69-crossing .v69-error{
+  background:#e5eada;border:1px dashed #a3b2a1;padding:28px 23px;color:#3a5745;line-height:1.8;font-size:12px;}
+#v69-crossing .v69-no-data strong{font:850 17px/1.5 'Noto Serif SC',serif;}
+#v69-crossing .v69-no-data p{margin:9px 0 0;}
+#v69-crossing .v69-error button{margin-top:9px;cursor:pointer;}
+#v69-crossing .v69-soft-error{padding:11px;background:#fbe8d8;color:#8f5038;font-size:12px;}
+#v69-crossing .v69-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:18px 0;}
+#v69-crossing .v69-summary span{display:flex;flex-direction:column;gap:3px;padding:13px;
+  background:#e5ebdd;border:1px solid #adbeae;color:#4e6d56;font-size:10px;}
+#v69-crossing .v69-summary b{font:900 clamp(22px,3vw,31px)/1.2 ui-monospace,monospace;color:#1e4d3a;}
+#v69-crossing .v69-summary .v69-summary-cross{background:#ebdfb8;border-color:#baa46b;color:#6f6037;}
+#v69-crossing .v69-summary-cross b{color:#8a692a;}
+#v69-crossing .v69-map-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 9px;}
+#v69-crossing .v69-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#446754;font-size:10px;font-weight:800;}
+#v69-crossing .v69-legend span{display:inline-flex;gap:6px;align-items:center;}
+#v69-crossing .v69-legend i{width:11px;height:11px;border:1px solid #294235;border-radius:50%;display:inline-block;background:#8ee2bd;}
+#v69-crossing .v69-legend .v69-dot-friend{background:#f0d28a;}
+#v69-crossing .v69-legend .v69-dot-cross{background:#fff0c1;border:2px solid #b98232;transform:rotate(45deg);border-radius:2px;}
+#v69-crossing .v69-map-buttons{display:flex;gap:4px;flex-wrap:wrap;}
+#v69-crossing .v69-map-buttons button{cursor:pointer;min-height:31px;padding:6px 10px;background:#f5f4e8;color:#28523f;
+  border:1px solid #92aa98;font-weight:800;font-size:10px;}
+#v69-crossing .v69-map-buttons button[aria-pressed="true"]{color:#fff4d8;background:#235441;border-color:#235441;}
+#v69-crossing .v69-map-surface{position:relative;overflow:hidden;min-height:380px;aspect-ratio:1.9/1;
+  background:#113a30;border:6px solid #224c40;box-shadow:4px 5px 0 #122e2747;touch-action:none;
+  cursor:grab;isolation:isolate;user-select:none;-webkit-user-select:none;}
+#v69-crossing .v69-map-surface.is-dragging{cursor:grabbing;}
+#v69-crossing #v69-world-svg{position:absolute;inset:0;width:100%;height:100%;z-index:1;}
+#v69-crossing .v69-graticule line{stroke:#6a9584;stroke-width:.45;stroke-dasharray:2 3;opacity:.42;}
+#v69-crossing .v69-land path{fill:#3a6857;stroke:#84a38b;stroke-width:.38;fill-rule:evenodd;}
+#v69-crossing .v69-routes path{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:2 3;opacity:.98;}
+#v69-crossing .v69-map-markers{position:absolute;inset:0;z-index:3;pointer-events:none;}
+#v69-crossing .v69-pin{position:absolute;display:grid;place-items:center;width:23px;height:23px;padding:0;
+  border:3px solid #153d30;border-radius:50%;box-shadow:0 1px 8px #0d2e25af;transform:translate(-50%,-50%);
+  pointer-events:auto;cursor:pointer;background:#8ee2bd;color:#16402f;}
+#v69-crossing .v69-pin:hover,#v69-crossing .v69-pin.is-selected,#v69-crossing .v69-pin:focus-visible{
+  outline:3px solid #fff4d4;outline-offset:3px;z-index:6;}
+#v69-crossing .v69-pin-friend{background:#f0d28a;border-color:#6e5829;}
+#v69-crossing .v69-pin-shared{width:31px;height:31px;background:#fff0bd;border:3px solid #c28d34;
+  border-radius:7px;box-shadow:0 0 0 5px #f0cc7944,0 1px 9px #151e1c99;transform:translate(-50%,-50%) rotate(45deg);}
+#v69-crossing .v69-pin-shared span{font-size:16px;transform:rotate(-45deg);line-height:1;}
+#v69-crossing .v69-map-foot{position:absolute;bottom:8px;left:10px;right:10px;z-index:2;pointer-events:none;
+  font:800 9px ui-monospace,monospace;color:#d3dfd4;text-shadow:0 2px 3px #08291d;background:#12382eac;
+  max-width:max-content;padding:4px 8px;}
+#v69-crossing .v69-map-explainer{font-size:10px;color:#607865;line-height:1.7;margin:10px 0 27px;}
+#v69-crossing .v69-crossing-list{margin:22px 0 19px;}
+#v69-crossing .v69-crossing-title{display:flex;align-items:end;justify-content:space-between;gap:10px;
+  padding-bottom:10px;border-bottom:1px solid #a8bcab;}
+#v69-crossing .v69-crossing-title h3{font:850 24px/1.2 'Noto Serif SC','Songti SC',serif;color:#194538;margin:0;}
+#v69-crossing .v69-crossing-title span{font:800 10px ui-monospace,monospace;color:#667b67;}
+#v69-crossing .v69-shared-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin-top:15px;}
+#v69-crossing .v69-shared-grid button{display:grid;text-align:left;gap:10px;background:#e9e4cd;border:1px solid #b4b49b;
+  padding:17px 14px;cursor:pointer;color:#214235;min-width:0;transition:transform .2s,box-shadow .2s;}
+#v69-crossing .v69-shared-grid button:hover{transform:translateY(-2px);box-shadow:3px 4px 0 #234b3231;}
+#v69-crossing .v69-shared-grid small{font:850 9px ui-monospace,monospace;color:#857344;letter-spacing:.1em;}
+#v69-crossing .v69-shared-grid strong{font:900 21px/1.32 'Noto Serif SC',serif;overflow-wrap:anywhere;}
+#v69-crossing .v69-shared-grid span{font-size:10px;color:#6d795e;line-height:1.4;}
+#v69-crossing .v69-empty-crossings{color:#738371;font-size:12px;margin-top:16px;line-height:1.7;}
+#v69-crossing .v69-memory-card{margin-top:21px;}
+#v69-crossing .v69-memory-placeholder{padding:23px;background:#e4e9db;border-left:4px solid #719c77;
+  color:#57735d;font-size:12px;line-height:1.7;}
+#v69-crossing .v69-memory-head{background:#23513e;color:#fff4da;padding:19px 22px;}
+#v69-crossing .v69-memory-head span{font:850 10px ui-monospace,monospace;color:#f1d797;}
+#v69-crossing .v69-memory-head h3{font:900 clamp(24px,3vw,31px)/1.3 'Noto Serif SC',serif;margin:8px 0 5px;}
+#v69-crossing .v69-memory-head p{color:#c4d9c9;margin:0;font-size:11px;}
+#v69-crossing .v69-memory-head strong{display:block;color:#f0d58f;font-size:11px;margin-top:8px;}
+#v69-crossing .v69-memories{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
+#v69-crossing .v69-person-memory,#v69-crossing .v69-memory-empty{display:flex;flex-direction:column;gap:7px;
+  padding:19px;background:#dfefe5;color:#244c39;border:1px solid #accabc;min-width:0;}
+#v69-crossing .v69-person-memory:nth-child(2){background:#f4e9c9;color:#5c5039;border-color:#cbbd93;}
+#v69-crossing .v69-person-memory span{font-weight:900;font-size:11px;}
+#v69-crossing .v69-person-memory strong{font-size:18px;font-family:'Noto Serif SC',serif;}
+#v69-crossing .v69-person-memory small{font-weight:800;font-size:12px;}
+#v69-crossing .v69-person-memory p,#v69-crossing .v69-memory-empty p{font-size:12px;line-height:1.85;
+  white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;}
+#v69-crossing .v69-person-memory button{align-self:flex-start;background:transparent;border:1px solid currentColor;
+  color:inherit;font-weight:800;font-size:11px;padding:6px 10px;cursor:pointer;}
+@media(max-width:900px){
+ #v69-crossing .v69-controls{grid-template-columns:1fr;}
+ #v69-crossing .v69-shared-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:680px){
+ #v69-crossing .v69-seal{width:58px;height:58px;min-width:58px;font-size:19px;}
+ #v69-crossing .v69-seal small{font-size:6px;}
+ #v69-crossing .v69-heading h2{font-size:26px;}
+ #v69-crossing .v69-summary{gap:5px;}
+ #v69-crossing .v69-summary span{padding:10px 7px;font-size:9px;}
+ #v69-crossing .v69-summary b{font-size:24px;}
+ #v69-crossing .v69-map-surface{min-height:280px;aspect-ratio:1.13/1;border-width:3px;}
+ #v69-crossing .v69-map-buttons button{padding:6px 7px;}
+ #v69-crossing .v69-map-tools{align-items:flex-start;}
+ #v69-crossing .v69-shared-grid{grid-template-columns:1fr;}
+ #v69-crossing .v69-memories{grid-template-columns:1fr;}
+ #v69-crossing .v69-peer{flex-wrap:wrap;}
+ #v69-crossing .v69-map-foot{font-size:8px;}
+}
+@media(prefers-reduced-motion:reduce){#v69-crossing *{transition:none!important;scroll-behavior:auto!important;}}
