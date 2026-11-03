@@ -12,7 +12,9 @@ import "./v059-refinement.css";
 import "./v060-flowing-gallery.css";
 import "./v061-collection-pages.css";
 import "./v062-import-flow.css";
+import "./v066-collection-export.css";
 import {readSheetFile,parseImportRows,normalizedName} from "./sheetImport.js";
+import {loadCollectionForExport,buildCollectionExportRows,collectionToCsv,collectionToXlsx} from './collectionExport.js';
 import {posterScoreTone,evaluateImportMatch} from "./importLookup.js";
 import {prepareImportRow,applyImportDecision,confirmImportCandidate,clearImportCandidate,toggleImportRow,canSelectImportRow,getImportLookupJobs,getImportSelectionSummary,hasConfirmedImportItem,importReviewBucket,orderedImportRowIndices} from "./importSelection.js";
 import {getPersonalStats} from "./personalStats.js";
@@ -73,6 +75,7 @@ import {coverImageUrl} from './coverUrl.js';
   let data = {items:[], records:[]};
   let threadData={posts:[],comments:[],loading:false,error:'',circleId:'',loadedAt:0};
   let threadSerial=0, bulkDraft=null, sheetLookupSerial=0;
+  let collectionExportRunning=false;
   let theme='club';try{theme=localStorage.getItem('tongpin:ui-theme')==='archive'?'archive':'club'}catch(_){}
   document.body.classList.toggle('theme-archive',theme==='archive');
   let remote = {items:[],notices:[],state:'idle',query:'',category:''};
@@ -422,12 +425,13 @@ import {coverImageUrl} from './coverUrl.js';
     <div class="stats"><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='game').length}</strong><span>🎮 游戏</span></div><div class="stat"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='anime').length}</strong><span>📺 动画</span></div><button type="button" class="stat stat-travel-gate" data-action="navigate" data-page="travel"><strong>${mine.filter(r=>itemById(r.itemId)?.category==='place').length}</strong><span>🚆 地点 · 去沿途车站 ↗</span></button></div>
     ${statsPanel()}
     <div class="import-entry panel"><div><span class="eyebrow">IMPORT / FROM YOUR ARCHIVE</span><h3>把过去的收藏，一次带进同频。</h3><p>支持 CSV / XLSX，先匹配和预览，再选择导入。默认只对你自己可见，不覆盖已有记录。</p></div><button class="primary-btn" data-action="sheet-import">⇧ 批量导入表格</button></div>
+    <div class="collection-export-panel panel"><div class="collection-export-copy"><span class="eyebrow">EXPORT / YOUR COLLECTION</span><h3>把你的收藏，带在身边。</h3><p>一键保存所有动画和游戏收藏的个人评分、状态、备注与作品资料。导出的首张表兼容同频批量导入；不包含好友记录。</p></div><div class="collection-export-actions"><button type="button" class="primary-btn" data-action="export-xlsx">⇩ 一键导出 Excel</button><button type="button" class="btn-ghost" data-action="export-csv">CSV 表格</button><small>不限当前筛选条件 · 旅行记录请使用下方完整 JSON 备份</small></div></div>
     <section class="locker-controls"><div class="panel-head"><div><h2 class="section-title">我的收藏与评分</h2><div class="section-sub">${mine.length} 条记录，其中 ${rated.length} 条已评分</div></div><div class="display-toggle" role="group" aria-label="收藏展示方式"><button data-action="personal-display" data-display="shelf" class="${view.personalDisplay==='shelf'?'selected':''}" aria-pressed="${view.personalDisplay==='shelf'}">▣ MIXTAPE 磁带馆</button><button data-action="personal-display" data-display="poster" class="${view.personalDisplay==='poster'?'selected':''}" aria-pressed="${view.personalDisplay==='poster'}">▦ 海报墙</button><button data-action="personal-display" data-display="list" class="${view.personalDisplay==='list'?'selected':''}" aria-pressed="${view.personalDisplay==='list'}">☷ 列表</button></div></div>${cats(view.personalCategory,'personal-category')}<div class="filter-line"><select id="personal-status" class="sort-select"><option value="all">全部状态</option><option value="want" ${view.personalStatus==='want'?'selected':''}>想体验</option><option value="doing" ${view.personalStatus==='doing'?'selected':''}>进行中</option><option value="done" ${view.personalStatus==='done'?'selected':''}>已完成 / 去过</option><option value="paused" ${view.personalStatus==='paused'?'selected':''}>搁置</option></select><select id="personal-sort" class="sort-select" aria-label="我的记录排序"><option value="recent" ${view.personalSort==='recent'?'selected':''}>最近更新</option><option value="rating" ${view.personalSort==='rating'?'selected':''}>个人评分榜（高到低）</option></select></div><div id="personal-list">${personalList()}</div></section>
     <div class="panel"><div class="theme-settings"><div><h2 class="section-title">页面主题</h2><p>VIDEO CLUB 复古录像店 / COLLECTION 编辑式影像资料库</p></div><button class="btn-ghost" data-action="theme-toggle">${theme==='archive'?'切换到 VIDEO CLUB':'切换到 COLLECTION'} ⇄</button></div></div>
     <div class="panel"><h2 class="section-title">账号与云端档案</h2><p class="help-copy">已登录：${esc(authUser?.email||'')}。个人记录保存在 Supabase；导入旧版记录时默认设为“仅自己可见”。</p>
     <form id="nickname-form" class="account-form"><label>圈内昵称</label><input name="nickname" class="form-control" maxlength="40" required value="${esc(userById(ME).name)}"/><button class="btn-ghost" type="submit">更新昵称</button></form>
     <form id="password-form" class="account-form"><label for="new-password">设置 / 修改登录密码</label><input id="new-password" name="newPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="新密码（8 位以上）"/><input name="confirmPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="确认新密码"/><button class="btn-ghost" type="submit">保存密码</button></form><p class="help-copy">旧版 Magic Link 用户：如当前仍已登录，可在此设置密码以保留原账号 ID、圈子和评分。若开启了 Supabase 的安全密码变更验证，旧会话可能还需重新认证。</p>
-    <div class="filters" style="margin:15px 0 0"><button class="btn-ghost" data-action="export">⇩ 导出数据</button><button class="btn-ghost" data-action="import">⇧ 导入旧版备份</button><button class="btn-ghost danger" data-action="logout">退出登录</button></div></div>`}
+    <div class="filters" style="margin:15px 0 0"><button class="btn-ghost" data-action="export">⇩ 完整 JSON 备份</button><button class="btn-ghost" data-action="import">⇧ 导入旧版备份</button><button class="btn-ghost danger" data-action="logout">退出登录</button></div></div>`}
   function displayError(error){
     const raw=String(error?.message||error||'未知错误');
     if(/Failed to fetch|NetworkError|fetch failed/i.test(raw))return '网络连接失败，请检查大陆网络到 Supabase Auth 的连通性';
@@ -1022,6 +1026,7 @@ import {coverImageUrl} from './coverUrl.js';
     else if(action==='logout')logout()
     else if(action==='auth-mode'){authMode=target.dataset.mode==='register'?'register':'login';render()}
     else if(action==='copy-invite'){if(inviteCode)navigator.clipboard.writeText(inviteCode).then(()=>toast('邀请码已复制')).catch(()=>toast('复制失败，请手动选择邀请码'))}
+    else if(action==='export-xlsx'||action==='export-csv')void exportCollection(action==='export-xlsx'?'xlsx':'csv');
     else if(action==='export')exportData();
     else if(action==='import')$('import-file').click();
   }
@@ -1121,6 +1126,26 @@ import {coverImageUrl} from './coverUrl.js';
     }catch(err){toast('操作失败：'+displayError(err));}
     finally{isBusy=false}
   });
+  async function exportCollection(format='xlsx'){
+    if(collectionExportRunning||!db||!authUser||!ME)return;
+    collectionExportRunning=true;
+    const buttons=[...document.querySelectorAll('[data-action="export-xlsx"],[data-action="export-csv"]')];
+    buttons.forEach(b=>b.disabled=true);
+    try{
+      toast('正在整理你的全部个人收藏…');
+      const snapshot=await loadCollectionForExport(db,ME);
+      const rows=buildCollectionExportRows({...snapshot,userId:ME});
+      if(!rows.length){toast('当前没有可导出的动画或游戏收藏');return;}
+      const blob=format==='xlsx'?collectionToXlsx(rows):new Blob([collectionToCsv(rows)],{type:'text/csv;charset=utf-8'});
+      const stamp=new Date().toISOString().slice(0,10);
+      const name=`同频-个人收藏-${stamp}.${format}`;
+      const href=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=href;a.download=name;a.style.display='none';document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(href),10000);
+      toast(`已生成 ${rows.length} 条个人收藏的 ${format==='xlsx'?'Excel':'CSV'} 文件`);
+    }catch(err){toast('导出失败：'+displayError(err));}
+    finally{collectionExportRunning=false;buttons.forEach(b=>b.disabled=false)}
+  }
   function exportData(){
     if(!authUser||!activeCircle)return;
     const mine=ownRecords(),included=new Set(mine.map(x=>x.itemId));

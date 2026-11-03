@@ -1,0 +1,18 @@
+/* V0.6.6: dedicated one-click collection export, both visual themes */
+.collection-export-panel{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 27px!important;background:linear-gradient(120deg,#212a29,#2f4139)!important;color:#fff9e9!important;border:1px solid #547361!important;border-radius:11px!important;box-shadow:6px 7px 0 #14211825!important}
+.collection-export-panel .eyebrow{color:#c0d9b7!important;font-size:10px;letter-spacing:.13em}
+.collection-export-panel h3{font-size:clamp(20px,2.3vw,28px);font-weight:900;letter-spacing:-.03em;line-height:1.25;margin:9px 0 8px}
+.collection-export-panel p{font-size:12px;line-height:1.75;max-width:570px;color:#d4dfd5;margin:0}
+.collection-export-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;flex:0 0 auto;max-width:330px}
+.collection-export-actions .primary-btn{background:#e2e8b2!important;color:#22332e!important;border:2px solid #e2e8b2!important;white-space:nowrap;font-weight:900}
+.collection-export-actions .btn-ghost{border:1px solid #b8ccb6!important;color:#f9f9ea!important;background:#ffffff0b!important;white-space:nowrap}
+.collection-export-actions button:disabled{opacity:.5;cursor:wait}
+.collection-export-actions small{flex-basis:100%;font-size:10px;text-align:right;color:#b5c8b5;line-height:1.55}
+body.theme-archive .collection-export-panel{background:linear-gradient(110deg,#eff4e9,#dfeae2)!important;color:#27463c!important;border:1px solid #c2d6c7!important;border-radius:18px 5px 18px 5px!important;box-shadow:0 10px 25px #233c2a13!important}
+body.theme-archive .collection-export-panel .eyebrow{color:#557566!important}
+body.theme-archive .collection-export-panel p{color:#607267}
+body.theme-archive .collection-export-actions .primary-btn{background:#30584a!important;color:white!important;border-color:#30584a!important;border-radius:6px}
+body.theme-archive .collection-export-actions .btn-ghost{background:#ffffffac!important;color:#30584a!important;border-color:#aebfb3!important}
+body.theme-archive .collection-export-actions small{color:#718277}
+@media(max-width:800px){.collection-export-panel{flex-direction:column;align-items:stretch;gap:15px;padding:20px!important}.collection-export-actions{max-width:none;justify-content:flex-start}.collection-export-actions small{text-align:left}}
+@media(max-width:420px){.collection-export-actions button{flex:1;min-width:0;font-size:11px;padding-inline:9px}}
