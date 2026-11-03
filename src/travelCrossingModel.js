@@ -112,3 +112,41 @@ export function zoomViewport(v,scale,anchorX=.5,anchorY=.5){
   const w=Math.max(27,Math.min(1000,v.w*scale)),h=w/2;
   return clampViewport({x:v.x+v.w*anchorX-w*anchorX,y:v.y+v.h*anchorY-h*anchorY,w,h});
 }
+
+/** V0.6.10 · group mode, 2–4 participants INCLUDING the current user.
+ * The caller must obtain rows from the existing server-side permission-checked RPC;
+ * this secondary filtering is for presentation only, not authorization.
+ */
+export function buildGroupTravelCrossings(rows, participants){
+  const ids=[...new Set((Array.isArray(participants)?participants:[]).filter(x=>typeof x==='string'&&x))].slice(0,4);
+  const allowed=new Set(ids),seen=new Set();
+  const tracksById=Object.fromEntries(ids.map(id=>[id,[]]));
+  const placesById=new Map();
+  for(const r of Array.isArray(rows)?rows:[]){
+    if(!r||!allowed.has(r.traveler_id)||!validLocation(r)||r.status!=='done'||r.visibility!=='circle')continue;
+    const key=r.traveler_id+'\u0000'+r.item_id;
+    if(seen.has(key))continue;
+    seen.add(key);
+    const enriched={...r,point:mapPoint(r)};
+    tracksById[r.traveler_id].push(enriched);
+    let place=placesById.get(r.item_id);
+    if(!place){
+      place={item_id:r.item_id,name:r.place_name,subtitle:r.place_subtitle,
+        point:enriched.point,visits:[],count:0,shared:false,sameDay:false,sameYear:false};
+      placesById.set(r.item_id,place);
+    }
+    place.visits.push(enriched);
+  }
+  const places=[...placesById.values()];
+  for(const place of places){
+    place.visits.sort((a,b)=>ids.indexOf(a.traveler_id)-ids.indexOf(b.traveler_id));
+    place.count=place.visits.length;
+    place.shared=place.count>=2;
+    const dates=place.visits.map(dateRange);
+    place.sameDay=place.count>=2&&dates.every(x=>x?.precision==='day'&&x.start===dates[0].start);
+    place.sameYear=place.count>=2&&dates.every(x=>x&&x.start.slice(0,4)===dates[0].start.slice(0,4));
+  }
+  const crossings=places.filter(p=>p.shared).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'zh-CN'));
+  const segmentsById=Object.fromEntries(ids.map(id=>[id,chronologicallyCertainSegments(tracksById[id])]));
+  return {participantIds:ids,tracksById,places,crossings,segmentsById};
+}

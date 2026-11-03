@@ -41,3 +41,38 @@ test('viewport bounds and zoom remain within map extents',()=>{
   assert.ok(v.w>=95);assert.ok(z.w<v.w);assert.ok(z.x>=0&&z.y>=0);
   assert.ok(z.x+z.w<=1000&&z.y+z.h<=500);
 });
+
+const groupRecord=(id,traveler,details={})=>record(id,traveler,details);
+test('group mode supports at most four unique people including me',async()=>{
+  const {buildGroupTravelCrossings}=await import('./travelCrossingModel.js');
+  const rows=['me','f1','f2','f3','f4'].map(id=>groupRecord('kyoto',id));
+  const d=buildGroupTravelCrossings(rows,['me','f1','f2','f3','f4','me']);
+  assert.deepEqual(d.participantIds,['me','f1','f2','f3']);
+  assert.equal(d.crossings.length,1);
+  assert.equal(d.crossings[0].count,4);
+  assert.equal(Object.keys(d.tracksById).length,4);
+});
+test('group shared stations count exact common catalog ID and support 2/3/4 filters',async()=>{
+  const {buildGroupTravelCrossings}=await import('./travelCrossingModel.js');
+  const rows=[groupRecord('a','me'),groupRecord('a','f1'),groupRecord('a','f2'),groupRecord('a','f3'),
+    groupRecord('b','me'),groupRecord('b','f2'),groupRecord('b','f3'),
+    groupRecord('c','me'),groupRecord('c','f3'),groupRecord('d','f1')];
+  const d=buildGroupTravelCrossings(rows,['me','f1','f2','f3']);
+  assert.deepEqual(d.places.filter(p=>p.count>=2).map(p=>p.item_id).sort(),['a','b','c']);
+  assert.deepEqual(d.places.filter(p=>p.count>=3).map(p=>p.item_id).sort(),['a','b']);
+  assert.deepEqual(d.places.filter(p=>p.count>=4).map(p=>p.item_id),['a']);
+  assert.equal(d.places.find(p=>p.item_id==='d').count,1);
+});
+test('group excludes private, wishlist, missing coordinates and unselected people',async()=>{
+  const {buildGroupTravelCrossings}=await import('./travelCrossingModel.js');
+  const d=buildGroupTravelCrossings([groupRecord('a','me'),
+    groupRecord('a','f1',{visibility:'private'}),groupRecord('a','f2',{status:'want'}),
+    groupRecord('a','f3',{longitude:null}),groupRecord('a','not-selected')],['me','f1','f2','f3']);
+  assert.equal(d.places[0].count,1);assert.equal(d.crossings.length,0);
+});
+test('group same-day label is true only when all records at that station are date-precise',async()=>{
+  const {buildGroupTravelCrossings}=await import('./travelCrossingModel.js');
+  const d=buildGroupTravelCrossings([groupRecord('a','me'),groupRecord('a','f1'),
+    groupRecord('a','f2',{visit_date_precision:'year',visited_on:'2025-01-01'})],['me','f1','f2']);
+  assert.equal(d.places[0].sameDay,false);assert.equal(d.places[0].sameYear,true);
+});
