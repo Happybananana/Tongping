@@ -1,0 +1,29 @@
+同频 V0.6.7｜GitHub 拖入自动升级版
+==============================
+
+【重要】这是 GitHub Actions 自动应用版，不是预先替换完 main.js 的普通覆盖包。
+由于本次无法取得连接的 GitHub 仓库写入权限，采用 GitHub 自身的自动工作流，
+在你上传文件后由 GitHub 自动修改源码、执行测试、提交升级。
+你不用运行 Python、Node.js 或终端命令。
+
+1. 先下载并在 Supabase SQL Editor 执行单独提供的 migration_v067.sql，
+   不要重新执行 schema.sql，不要删除原有数据库。
+2. 解压 ZIP。将 ZIP 内所有文件、文件夹按原目录结构拖入 GitHub 仓库 main 分支根目录，
+   必须包含隐藏的 .github 文件夹；不要只上传 ZIP 本身。
+3. 点击 Commit changes 后，打开 GitHub 仓库 Actions。
+   找到 “Tongpin V0.6.7 Auto Upgrade”。
+   如果显示绿色 Success，工作流已经将真正修改后的源码提交至 main，
+   随后 Vercel 会按现有 GitHub 集成重新构建。
+4. 如果 Actions 没启动：检查仓库 Actions 是否启用；GitHub 可能要求首次启用。
+   如果报 403 推送失败：Settings → Actions → General → Workflow permissions，
+   确认允许工作流写入仓库。若受组织策略限制，需使用别的升级方式。
+5. 进入网站检查版本标记 0.6.7，海报墙 6 档评分牌，
+   以及 7.6、8.3、9.7 的保存、刷新与 CSV 导入导出。
+
+GitHub Actions 工作流会在测试和构建通过后提交修改。
+如果有异常，工作流会失败而不会提交不完整的升级，
+可以从 Actions 的失败步骤定位问题。
+所有新的源码修改会保留在仓库中，不只是运行时替换。
+此升级包只针对 2026-11-03 的 V0.6.6（main 分支）。
+
+（SQL 文件单独下载；包内附带相同 SQL 文本，方便将迁移记录保存在仓库。）

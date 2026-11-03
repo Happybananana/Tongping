@@ -1,0 +1,46 @@
+/* Tongpin V0.6.7: six-tier personal score badges in the poster wall only.
+   Red <7; yellow 7–<8; four greens at 8/8.5/9/9.5.
+   Leave cover size, poster layout and other score surfaces unchanged. */
+
+/* Use higher specificity than V0.5.9's !important declarations. */
+body .poster-score.score-tier-red {
+  background:#E96A65!important;color:#251915!important;border-color:#26332D!important;
+}
+body .poster-score.score-tier-yellow {
+  background:#F4CB52!important;color:#282316!important;border-color:#26332D!important;
+}
+body .poster-score.score-tier-green-80 {
+  background:#A4E5BB!important;color:#173A29!important;border-color:#26332D!important;
+}
+body .poster-score.score-tier-green-85 {
+  background:#58CC8E!important;color:#103724!important;border-color:#26332D!important;
+}
+body .poster-score.score-tier-green-90 {
+  background:#238257!important;color:#FFFFFF!important;border-color:#173D2C!important;
+}
+body .poster-score.score-tier-green-95 {
+  background:#14583F!important;color:#FFFFFF!important;border-color:#B9F2CC!important;
+  box-shadow:inset 0 0 0 2px #B9F2CC,3px 4px 0 #101B1FD1!important;
+  padding-top:7px!important;
+}
+/* Exclusive compact 'gem' marker for 9.5–10; no additional cover graphics. */
+body .poster-score.score-tier-green-95::after {
+  content:'◆';position:absolute;top:-7px;right:-6px;
+  display:grid;place-items:center;width:16px;height:16px;
+  background:#C9F9D9;color:#14583F;
+  border:1px solid #14583F;border-radius:3px;
+  font:900 10px/1 Arial,sans-serif;
+}
+
+body .poster-score-guide .r{background:#E96A65}
+body .poster-score-guide .y{background:#F4CB52}
+body .poster-score-guide .g{background:#58CC8E}
+
+@media(max-width:700px){
+  body .poster-score.score-tier-green-95::after{
+    width:13px;height:13px;top:-5px;right:-4px;font-size:8px
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  body .poster-score{transition:none!important}
+}
